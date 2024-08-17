@@ -36,6 +36,7 @@
 
 extern bool minute_on_slc;
 extern bool minute_on_sd;
+extern bool use_minute_img;
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -935,8 +936,15 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
         ancast_plugin_next = res;
     }
 
-    if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
-        prsh_set_entry("minute_on_slc", NULL, 0);
+    u32 minute_location = 0;
+    if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD)){
+        prsh_set_entry("minute_on_slc", NULL, 0); // keep for legacy
+        minute_location |= 1;
+    }
+    if(use_minute_img)
+        minute_location |= 2;
+
+    prsh_set_entry("minute_location", (void*) minute_location, 0);
 
     if(crypto_otp_is_de_Fused || (rednand && redotp)){
         config_plugin_base = ancast_plugin_next;

@@ -76,6 +76,7 @@ const char slc_plugin_dir[] = "slc:/sys/hax/ios_plugins";
 int main_loaded_from_boot1 = 0;
 bool minute_on_slc = false;
 bool minute_on_sd = false;
+bool use_minute_img = false;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
@@ -137,9 +138,14 @@ static bool load_fw_from_sd_fat(void){
                 return false;
             }
         }
-        res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
-        if (res != FR_OK) {
-            return false;
+        res = f_open(&f, "sdmc:/minute.img", FA_OPEN_EXISTING | FA_READ);
+        if (res == FR_OK) {
+            use_minute_img = true;
+        } else {
+            res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
+            if (res != FR_OK) {
+                return false;
+            }
         }
         res = f_read(&f, (void*)ALL_PURPOSE_TMP_BUF, 0x800000, &read);
         f_close(&f);
@@ -482,7 +488,11 @@ u32 _main(void *base)
         int res = isfshax_refresh();
         prsh_add_entry("isfshax_refresh", (void*)res, 0, NULL);
         serial_send_u32(0x5D4D0004);
-        bool ok = read_ancast("slc:/sys/hax/fw.img");
+        bool ok = read_ancast("slc:/sys/hax/minute.img");
+        if(ok)
+            use_minute_img = true;
+        else
+            ok = read_ancast("slc:/sys/hax/fw.img");
         if(ok)
             boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
         serial_send_u32(0x5D4D0005);
@@ -549,6 +559,9 @@ boot:
     else
         memcpy(BOOT1_PASSALONG->magic_device, PASSALONG_MAGIC_DEVICE_SD, 8);
 
+    memcpy(BOOT1_PASSALONG->magic_minute_img, 
+            use_minute_img?PASSALONG_MAGIC_MINUTE_IMG:PASSALONG_MAGIC_FW_IMG, 8);
+
 #ifdef ISFSHAX_STAGE2
     memcpy(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_DECRYPTED, 8);
 
@@ -597,7 +610,7 @@ menu menu_main = {
         {"PRSH tweaks", &prsh_menu},
         {"Display crash log", &main_get_crash},
         {"Clear crash log", &main_reset_crash},
-        {"Restart minute", &main_reload},
+        {"Restart minute.img", &main_reload},
         {"Hardware reset", &main_reset},
         {"Power off", &main_shutdown},
         {"Credits", &main_credits},
@@ -654,6 +667,10 @@ u32 _main(void *base)
             minute_on_sd = true;
             memset(BOOT1_PASSALONG->magic_device, 0, 8);
         }
+
+        if (!memcmp(BOOT1_PASSALONG->magic_minute_img, PASSALONG_MAGIC_MINUTE_IMG, 8))
+            use_minute_img = true;
+        memset(BOOT1_PASSALONG->magic_minute_img, 0, 8);
 
         if (!memcmp(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_ENCRYPTED, 8))
         {
@@ -1112,7 +1129,7 @@ void main_reload(void)
 {
     gfx_clear(GFX_ALL, BLACK);
 
-    boot.vector = ancast_iop_load("fw.img");
+    boot.vector = ancast_iop_load("minute.img");
     boot.needs_otp = 0;
     boot.is_patched = 0;
 
@@ -1120,7 +1137,7 @@ void main_reload(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load fw.img!\n");
+        printf("Failed to load minute.img!\n");
         console_power_to_continue();
     }
 }
