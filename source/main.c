@@ -488,28 +488,30 @@ u32 _main(void *base)
         int res = isfshax_refresh();
         prsh_add_entry("isfshax_refresh", (void*)res, 0, NULL);
         serial_send_u32(0x5D4D0004);
-        bool ok = read_ancast("slc:/sys/hax/minute.img");
-        if(ok)
-            use_minute_img = true;
-        else
-            ok = read_ancast("slc:/sys/hax/fw.img");
-        if(ok)
-            boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
-        serial_send_u32(0x5D4D0005);
-        if(boot.vector){
-            boot.mode = 0;
-            menu_reset();
-            minute_on_slc = true;
-            serial_send_u32(0x5D4D006);
-        }
     }
-    #endif //ISFSHAX_STAGE2 
+#endif // ISFSHAX_STAGE2
+
     
-    if(!boot.vector)
-        boot.vector = load_fw_from_sd(!slc_mounted);
+    boot.vector = load_fw_from_sd(!slc_mounted);
 
 #ifdef ISFSHAX_STAGE2
     if(slc_mounted){
+        if(!boot.vector) {
+            bool ok = read_ancast("slc:/sys/hax/minute.img");
+            if(ok)
+                use_minute_img = true;
+            else
+                ok = read_ancast("slc:/sys/hax/fw.img");
+            if(ok)
+                boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
+            serial_send_u32(0x5D4D0005);
+            if(boot.vector){
+                boot.mode = 0;
+                menu_reset();
+                minute_on_slc = true;
+                serial_send_u32(0x5D4D006);
+            }
+        }
         if(!boot.vector) {
             serial_send_u32(0x5D4D0007);
             boot.vector = boot1_patch_isfshax();
