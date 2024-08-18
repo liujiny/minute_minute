@@ -791,7 +791,9 @@ u32 _main(void *base)
     u32 sd_start = read32(LT_TIMER);
     u32 sd_end = sd_start;
 #endif
-#ifndef FASTBOOT
+#ifdef FASTBOOT
+    if(minute_on_sd) {
+#endif
     sdcard_init();
     printf("sdcard_init finished\n");
 
@@ -803,6 +805,9 @@ u32 _main(void *base)
 #ifdef MEASURE_TIME
     sd_end = read32(LT_TIMER);
 #endif
+#ifdef FASTBOOT
+    }
+#else
 
     crypto_check_de_Fused();
 
@@ -965,7 +970,10 @@ u32 _main(void *base)
 #endif
 
 #ifdef FASTBOOT
-    main_quickboot_patch_slc();
+    if(!minute_on_sd)
+        main_quickboot_patch_slc();
+    if(!boot.vector)
+        main_quickboot_patch();
 #else
     // Prompt user to skip autoboot, time = 0 will skip this.
     if(autoboot)
