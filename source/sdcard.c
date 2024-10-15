@@ -379,7 +379,14 @@ void sdcard_needs_discover(void)
     cmd.c_datalen = sizeof(mode_status);
     cmd.c_blklen = sizeof(mode_status);
     cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+    
     sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("sdcard: SWITCH FUNC Mode 1 %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        //goto out_clock;
+        return; // 1.0 card, which doesn't support CMD6
+    }
 
     if(mode_status[16] != 1){
         printf("sdcard: switch to SDR25 failed, staying at SDR12\n");
