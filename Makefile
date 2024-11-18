@@ -122,7 +122,7 @@ DEPENDS		:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 ELFLOADER = $(ROOTDIR)/elfloader/elfloader.bin
 
-$(ROOTDIR)/fw.img: $(OUTPUT)-strip.elf $(ELFLOADER)
+$(ROOTDIR)/minute.img: $(OUTPUT)-strip.elf $(ELFLOADER)
 	@python3 $(ROOTDIR)/castify.py $(ELFLOADER) $< $@ false
 
 $(OUTPUT)-strip.elf: $(OUTPUT).elf

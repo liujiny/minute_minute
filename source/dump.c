@@ -42,9 +42,6 @@
 #ifndef MINUTE_BOOT1
 #ifndef FASTBOOT
 
-// TODO: how many sectors is 8gb MLC WFS?
-#define TOTAL_SECTORS (0x3A20000)
-
 extern seeprom_t seeprom;
 extern otp_t otp;
 
@@ -159,13 +156,41 @@ void dump_menu_show()
     menu_init(&menu_dump);
 }
 
+static u32 dump_get_iosu_mlc_sectors(void){
+    u32 sectors = mlc_get_sectors();
+    if(sectors == -1)
+        return -1;
+    if (sectors < 0xe60000) {
+        // smaller than 8GB
+        sectors -= 1;
+    }
+    else if (sectors < 0x3a30000) {
+        sectors = 0xe5ffff; //8GB
+    }
+    else if (sectors < 0x7478000) {
+        sectors = 0x3a2ffff; //32GB
+    }
+    else {
+        sectors = 0x7477fff; //64GB
+    }
+    return sectors -0xffff;
+}
+
 void dump_factory_log()
 {
     FILE* f_log = NULL;
     int ret = 0;
 
-    if(mlc_init())
-        goto close_ret;
+    if(mlc_init()){
+        printf("Error initilizing MLC\n");
+        goto ret;
+    }
+
+    const u32 mlc_sectors = dump_get_iosu_mlc_sectors();
+    if(mlc_sectors == -1){
+        printf("Error getting MLC size\n");
+        goto ret;
+    }
 
     gfx_clear(GFX_ALL, BLACK);
 
@@ -181,7 +206,7 @@ void dump_factory_log()
     u32 total_sec = mlc_get_sectors();
 
     u32 block_size_bytes = SDHC_BLOCK_COUNT_MAX * 0x200;
-    for(u32 sector = TOTAL_SECTORS; sector < total_sec; sector += SDHC_BLOCK_COUNT_MAX)
+    for(u32 sector = mlc_sectors; sector < total_sec; sector += SDHC_BLOCK_COUNT_MAX)
     {
         do ret = mlc_read(sector, SDHC_BLOCK_COUNT_MAX, sector_buf);
         while(ret);
@@ -206,7 +231,7 @@ void dump_factory_log()
 
 close_ret:
     if(f_log) fclose(f_log);
-
+ret:
     console_power_or_eject_to_return();
 }
 
@@ -778,8 +803,16 @@ int _dump_mlc(u32 base)
         return -1;
     }
 
-    if(mlc_init())
+    if(mlc_init()){
+        printf("Error initilizing MLC\n");
         return -1;
+    }
+
+    const u32 mlc_sectors = dump_get_iosu_mlc_sectors();
+    if(mlc_sectors == -1){
+        printf("Error getting MLC size\n");
+        return -1;
+    }
 
     int res = 0, mres = 0, sres = 0;
     if(base == 0) return -2;
@@ -802,7 +835,7 @@ int _dump_mlc(u32 base)
 
     // Do one less iteration than we need, due to having to special case the start and end.
     u32 sdcard_sector = base;
-    for(u32 sector = SDHC_BLOCK_COUNT_MAX; sector < TOTAL_SECTORS; sector += SDHC_BLOCK_COUNT_MAX)
+    for(u32 sector = SDHC_BLOCK_COUNT_MAX; sector < mlc_sectors; sector += SDHC_BLOCK_COUNT_MAX)
     {
         int complete = 0;
         // Make sure to retry until the command succeeded, probably superfluous but harmless...
@@ -859,11 +892,19 @@ int _dump_restore_mlc(u32 base)
         return -1;
     }
 
-    if(mlc_init())
+    if(mlc_init()){
+        printf("Error initilizing MLC\n");
         return -2;
+    }
+
+    const u32 mlc_sectors = dump_get_iosu_mlc_sectors();
+    if(mlc_sectors == -1){
+        printf("Error getting MLC size\n");
+        return -2;
+    }
 
     int res = 0, mres = 0, sres = 0;
-    if(base == 0) return -2;
+    if(base == 0) return -3;
 
     // This uses "async" read/write functions, combined with double buffering to achieve a
     // much faster dump. This works because these are two separate host controllers using DMA.
@@ -910,7 +951,7 @@ int _dump_restore_mlc(u32 base)
     u32 sdcard_sector = base + SDHC_BLOCK_COUNT_MAX;
     u32 mlc_sector = 0;
 
-    while(mlc_sector < (TOTAL_SECTORS - SDHC_BLOCK_COUNT_MAX))
+    while(mlc_sector < (mlc_sectors - SDHC_BLOCK_COUNT_MAX))
     {
         int complete = 0;
         int retries = 0;
@@ -1579,12 +1620,22 @@ int _dump_partition_rednand(void)
         return -1;
     }
 
+    if(mlc_init()){
+        printf("Error initilizing MLC\n");
+        return -2;
+    }
+
+    const u32 mlc_sectors = dump_get_iosu_mlc_sectors();
+    if(mlc_sectors == -1){
+        printf("Error getting MLC size\n");
+        return -2;
+    }
+
     u32 fat_base = LD_DWORD(mbr.partition[0].lba_start);
     u32 fat_sectors = LD_DWORD(mbr.partition[0].lba_length);
     u32 fat_end = fat_base + fat_sectors;
 
     const u32 slc_sectors = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
-    const u32 mlc_sectors =  TOTAL_SECTORS; // TODO: 8GB model.
     const u32 data_sectors = 0x100000 / SDMMC_DEFAULT_BLOCKLEN;
 
     u32 end = (u32)sdcard_get_sectors() & 0xFFFF0000;
