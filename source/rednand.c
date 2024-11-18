@@ -273,8 +273,13 @@ static int apply_ini_config(void){
 
     rednand.mlc_nocrypto = rednand_ini.mlc_nocrypto;
 
-    if(rednand_ini.sys_mount_mlc && (!rednand_ini.disable_scfm || !rednand.mlc.lba_length || rednand.slc.lba_length)){
-        printf("Mounting sysMLC is only possible with redMLC enabled, redNAND SCFM and SLC redirection disabled\n");
+    if(rednand_ini.sys_mount_mlc && rednand.slc.lba_length) {
+        printf("Mounting sysMLC as USB isn't allowed with SLC redirection\n");
+        return -1;
+    }
+
+    if(rednand_ini.sys_mount_mlc && rednand.mlc.lba_length && !rednand_ini.disable_scfm){
+        printf("Mounting sysMLC on redMLC enabled is only possible with redNAND SCFM and SLC redirection disabled\n");
         return -1;
     }
     rednand.sys_mount_mlc = rednand_ini.sys_mount_mlc;
