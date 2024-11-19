@@ -293,7 +293,13 @@ static int apply_ini_config(void){
         return -1;
     }
 
-    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n mlc: %i\n disable scfm: %i\n mlc_nocrypto: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm, rednand.mlc_nocrypto);
+    printf("Rednand Config:\n");
+    printf(" slccmpt: %i\n", rednand.slccmpt.lba_length);
+    printf(" slc: %i\n", rednand.slc.lba_length);
+    printf(" mlc: %i\n", rednand.mlc.lba_length);
+    printf(" disable scfm: %i\n", rednand.disable_scfm);
+    printf(" mlc_nocrypto: %i\n", rednand.mlc_nocrypto);
+    printf(" mlc sysmount: %i\n", rednand.sys_mount_mlc);
 
     return ret;
 }
