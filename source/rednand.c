@@ -264,6 +264,7 @@ static int apply_ini_config(void){
         rednand.disable_scfm = rednand_ini.disable_scfm;
         ret |= 2;
     }
+    rednand.disable_scfm = rednand_ini.disable_scfm;
 
     rednand.scfm_on_slccmpt = rednand_ini.scfm_on_slccmpt;
     if(rednand.disable_scfm && rednand.scfm_on_slccmpt){
