@@ -157,3 +157,11 @@ int seeprom_write(void *src, int offset, int size)
     return size;
 }
 
+void seeprom_erase(void){
+    set32(LT_GPIO_OUT, BIT(GP_EEP_CS));
+    send_bits(0x480, 11);
+    clear32(LT_GPIO_OUT, BIT(GP_EEP_CS));
+    flush();
+    eeprom_delay();
+}
+
