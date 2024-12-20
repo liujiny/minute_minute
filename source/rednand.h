@@ -3,6 +3,7 @@
 
 extern rednand_config rednand;
 extern otp_t *redotp;
+extern u16 *redseeprom;
 
 int init_rednand(void);
 

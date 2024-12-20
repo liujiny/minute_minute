@@ -964,6 +964,11 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
         prsh_set_entry("otp", (void*)(config_plugin_base+IPX_DATA_START), sizeof(*o));
     }
 
+    if(rednand && redseeprom) {
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)redseeprom, SEEPROM_SIZE);
+        prsh_set_entry("seeprom", (void*)(config_plugin_base+IPX_DATA_START), SEEPROM_SIZE);
+    }
+
     return 0;
 }
 #endif
