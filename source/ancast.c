@@ -965,6 +965,7 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
     }
 
     if(rednand && redseeprom) {
+        config_plugin_base = ancast_plugin_next;
         ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)redseeprom, SEEPROM_SIZE);
         prsh_set_entry("seeprom", (void*)(config_plugin_base+IPX_DATA_START), SEEPROM_SIZE);
     }
