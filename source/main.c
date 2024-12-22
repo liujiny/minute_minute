@@ -80,6 +80,7 @@ bool use_minute_img = false;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
+bool auto_reload = true;
 
 int main_autoboot(void);
 void main_quickboot_patch_slc(void);
@@ -929,6 +930,11 @@ u32 _main(void *base)
     u32 ini_end = read32(LT_TIMER);
 #endif
 
+    if(is_iosu_reload && !auto_reload){
+        autoboot = 0;
+        no_menu = false;
+    }
+
     // idk?
     if (main_loaded_from_boot1) {
         write32(0xC, 0x20008000);
@@ -1118,6 +1124,9 @@ int boot_ini(const char* key, const char* value)
         main_force_pause = minini_get_bool(value, 0);
     else if(!strcmp(key, "allow_legacy_patches"))
         main_allow_legacy_patches = minini_get_bool(value, 0);
+    else if(!strcmp(key, "autoreload")){
+        auto_reload = minini_get_bool(value, true);
+    }
 
     return 0;
 }
