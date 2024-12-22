@@ -10,6 +10,8 @@ Autobooting can be configured in the `[boot]` section in [minute/minute.ini](con
 
 If no SD card is inserted, minute was loaded from SLC and the `slc:/sys/hax/ios_plugins` directory exists minute will try autobooting from SLC (first option in minute).
 
+When a IOSU reload happens, minute will automatically boot the last booted option again, to disable this behavior set `autoreload=false` in the `[boot]` section.
+
 ## redNAND
 
 redNAND allows replacing one or more of the Wii Us internal storage devices (SLCCMPT, SLC, MLC) with partitions on the SD card. redNAND is implemented in stroopwafel, but configured through minute. The SLC and SLCCMPT partition are without the ECC/HMAC data. \
@@ -35,6 +37,14 @@ Windows Disk Mangement doesn't support multiple partitions on SD cards, so you n
 
 SCFM is a block level write cache for the MLC which resides on the SLC. This creates a coupling between to SLC and the MLC, which needs to be consistent at all times. You can not restore one without the other. This also means using the red MLC with the sys SLC or the other way around is not allowed unless explicitly enabled to prevent damage to the sys nand. \
 MLC only redirection is still possible by disabling SCFM. But that requires a MLC, which is consistent without SCFM. There are two ways to archive that. Either [rebuid a fresh MLC](https://gbatemp.net/threads/how-to-upgrading-rebuilding-wii-u-internal-memory-mlc.636309/) on the redNAND partition or use a MLC Dump which was obtained through the [recovery_menu](https://github.com/jan-hofmeier/recovery_menu/releases). Format the Partition to NTFS before writing the backup to change the ID to the correct type. The MLC clone obtained bye `Format redNAND` option requires SCFM, same for the mlc.bin obtained by the original nanddumper.
+
+### OTP
+
+If a file `redotp.bin` is found on the SD card, it will be used instead of the real otp / otp.bin (for defuse). OTP redirection requires redirection of SLC, SLCCMPT and MLC.
+
+###  SEEPROM
+
+SEEPROM redirection works similar to the OTP redirection, it looks for `redseeprom.bin`. If IOSU changes the SEEPROM, the changes won't be written back to the file and will be lost on reboot. The disc drive key is not redirected and is still read from the real SEEPROM.
 
 ### redNAND configuration
 
