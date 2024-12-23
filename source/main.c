@@ -725,7 +725,8 @@ u32 _main(void *base)
 
     printf("boot_state: %X\n", boot_info_copy.boot_state);
  
-    bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
+    // PRSHhax has the timer flag set, but wasn't loaded from minute boot1 and shouldn't be treated as eco mode
+    bool is_eco_mode = (boot_info_copy.boot_state & PON_SMC_TIMER) && main_loaded_from_boot1;
     if(is_eco_mode) {
         printf("ECO Mode!\n");
         no_menu = no_gpu = true;
