@@ -928,7 +928,7 @@ int _dump_restore_mlc(u32 base)
 
     bool allzero = true;
     for(size_t i = 0; i < SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX; i++){
-        if(mlc_buf[i]){
+        if(sdcard_buf[i]){
             allzero = false;
             break;
         }
