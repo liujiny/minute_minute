@@ -36,6 +36,7 @@ typedef struct {
     u8 magic_prsh[8];
     boot_info_t boot_info;
     u32 start_time;
+    u8 magic_minute_img[8];
 } boot1_passalong_info;
 
 u32 ancast_iop_load(const char* path);
@@ -66,6 +67,8 @@ extern uintptr_t ancast_plugins_base;
 #define PASSALONG_MAGIC_PRSH_DECRYPTED ("MIDEPRSH")
 #define PASSALONG_MAGIC_DEVICE_SLC ("MIDEVSLC")
 #define PASSALONG_MAGIC_DEVICE_SD ("MIDEVESD")
+#define PASSALONG_MAGIC_MINUTE_IMG ("IMGMIIMG")
+#define PASSALONG_MAGIC_FW_IMG ("IMGFWIMG")
 
 #define ANCAST_MAGIC (0xEFA282D9l)
 #define ANCAST_TARGET_IOP (0x02)

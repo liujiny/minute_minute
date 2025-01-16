@@ -19,11 +19,13 @@ static const char rednand_ini_file[] = "sdmc:/minute/rednand.ini";
 static const char ini_error[] = "ERROR in rednand.ini: ";
 
 char *redotp_path = "sdmc:/redotp.bin";
+char *redseeprom_path = "sdmc:/redseeprom.bin";
 
 
 rednand_config rednand = { 0 };
 
 otp_t *redotp = NULL;
+u16 *redseeprom = NULL;
 
 static struct {
     bool slc;
@@ -261,9 +263,9 @@ static int apply_ini_config(void){
 
     if(rednand_ini.mlc && rednand_ini.disable_scfm != rednand.disable_scfm){
         printf("WARNING: rednand.ini scfm config missmatches red mlc partition type\nContinuing can lead to CORRUPTION!!! Stop if you didn't expect this warning\n");
-        rednand.disable_scfm = rednand_ini.disable_scfm;
         ret |= 2;
     }
+    rednand.disable_scfm = rednand_ini.disable_scfm;
 
     rednand.scfm_on_slccmpt = rednand_ini.scfm_on_slccmpt;
     if(rednand.disable_scfm && rednand.scfm_on_slccmpt){
@@ -273,8 +275,13 @@ static int apply_ini_config(void){
 
     rednand.mlc_nocrypto = rednand_ini.mlc_nocrypto;
 
-    if(rednand_ini.sys_mount_mlc && (!rednand_ini.disable_scfm || !rednand.mlc.lba_length || rednand.slc.lba_length)){
-        printf("Mounting sysMLC is only possible with redMLC enabled, redNAND SCFM and SLC redirection disabled\n");
+    if(rednand_ini.sys_mount_mlc && rednand.slc.lba_length) {
+        printf("Mounting sysMLC as USB isn't allowed with SLC redirection\n");
+        return -1;
+    }
+
+    if(rednand_ini.sys_mount_mlc && rednand.mlc.lba_length && !rednand_ini.disable_scfm){
+        printf("Mounting sysMLC on redMLC enabled is only possible with redNAND SCFM and SLC redirection disabled\n");
         return -1;
     }
     rednand.sys_mount_mlc = rednand_ini.sys_mount_mlc;
@@ -287,15 +294,47 @@ static int apply_ini_config(void){
         return -1;
     }
 
-    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n mlc: %i\n disable scfm: %i\n mlc_nocrypto: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm, rednand.mlc_nocrypto);
+    printf("Rednand Config:\n");
+    printf(" slccmpt: %i\n", rednand.slccmpt.lba_length);
+    printf(" slc: %i\n", rednand.slc.lba_length);
+    printf(" mlc: %i\n", rednand.mlc.lba_length);
+    printf(" disable scfm: %i\n", rednand.disable_scfm);
+    printf(" mlc_nocrypto: %i\n", rednand.mlc_nocrypto);
+    printf(" mlc sysmount: %i\n", rednand.sys_mount_mlc);
 
     return ret;
+}
+
+static int rednand_load_seeprom(void) {
+    if(redseeprom)
+        free(redseeprom);
+    printf("INFO: Trying to load %s... ", redseeprom_path);
+    FILE* file = fopen(redseeprom_path, "rb");
+    if (!file){
+        printf("NOT FOUND!\n");
+        return 0;
+    }
+    printf("FOUND!\n");
+    redseeprom = memalign(32, SEEPROM_SIZE);
+    if(!redseeprom){
+        printf("Error allocating memory for red_seeprom\n");
+        return -1;
+    }
+
+    int read = fread(redseeprom, SEEPROM_SIZE, 1, file);
+    fclose(file);
+    if(read != 1){
+        printf("Error loading %s\n", redseeprom_path);
+        free(redseeprom);
+        redseeprom = NULL;
+        return -2;
+    }
 }
 
 static int rednand_load_opt(void){
     if(redotp)
         free(redotp);
-    printf("Trying to load %s... ", redotp_path);
+    printf("INFO: Trying to load %s... ", redotp_path);
     FILE* otp_file = fopen(redotp_path, "rb");
     if (!otp_file){
         printf("NOT FOUND!\n");
@@ -315,7 +354,8 @@ static int rednand_load_opt(void){
         redotp = NULL;
         return -2;
     }
-    memcpy(redotp->seeprom_key, otp.seeprom_key, sizeof(otp.seeprom_key));
+    if(!redseeprom)
+        memcpy(redotp->seeprom_key, otp.seeprom_key, sizeof(otp.seeprom_key));
     return 1;
 }
 
@@ -330,10 +370,13 @@ void clear_rednand(void){
 int init_rednand(void){
     clear_rednand();
 
+    int redseeprom_error = rednand_load_seeprom();
+    if(redseeprom_error < 0)
+        return -5;
+
     int redotp_error = rednand_load_opt();
-    if(redotp_error < 0){
+    if(redotp_error < 0)
         return -4;
-    }
 
     int ini_error = rednand_load_ini();
     if(ini_error < 0)

@@ -36,6 +36,7 @@
 
 extern bool minute_on_slc;
 extern bool minute_on_sd;
+extern bool use_minute_img;
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -370,6 +371,10 @@ int ancast_fini(ancast_ctx* ctx)
     return 0;
 }
 
+static u8* get_key(void){
+    return redotp?redotp->fw_ancast_key:otp.fw_ancast_key;
+}
+
 typedef struct {
     u32 header_size;
     u32 loader_size;
@@ -398,7 +403,7 @@ u32 ancast_iop_load(const char* path)
 #if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
-        aes_set_key(otp.fw_ancast_key);
+        aes_set_key(get_key());
 
         static const u8 iv[16] = {0x91, 0xC9, 0xD0, 0x08, 0x31, 0x28, 0x51, 0xEF,
                                   0x6B, 0x22, 0x8B, 0xF1, 0x4B, 0xAD, 0x43, 0x22};
@@ -468,7 +473,7 @@ u32 ancast_iop_load_from_raw_sector(int sector_idx)
 #ifndef MINUTE_BOOT1
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
-        aes_set_key(otp.fw_ancast_key);
+        aes_set_key(get_key());
 
         static const u8 iv[16] = {0x91, 0xC9, 0xD0, 0x08, 0x31, 0x28, 0x51, 0xEF,
                                   0x6B, 0x22, 0x8B, 0xF1, 0x4B, 0xAD, 0x43, 0x22};
@@ -515,7 +520,7 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
 #if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
-        aes_set_key(otp.fw_ancast_key);
+        aes_set_key(get_key());
 
         static const u8 iv[16] = {0x91, 0xC9, 0xD0, 0x08, 0x31, 0x28, 0x51, 0xEF,
                                   0x6B, 0x22, 0x8B, 0xF1, 0x4B, 0xAD, 0x43, 0x22};
@@ -931,8 +936,15 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
         ancast_plugin_next = res;
     }
 
-    if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
-        prsh_set_entry("minute_on_slc", NULL, 0);
+    u32 minute_location = 0;
+    if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD)){
+        prsh_set_entry("minute_on_slc", NULL, 0); // keep for legacy
+        minute_location |= 1;
+    }
+    if(use_minute_img)
+        minute_location |= 2;
+
+    prsh_set_entry("minute_location", (void*) minute_location, 0);
 
     if(crypto_otp_is_de_Fused || (rednand && redotp)){
         config_plugin_base = ancast_plugin_next;
@@ -950,6 +962,12 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
         }
         ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)o, sizeof(*o));
         prsh_set_entry("otp", (void*)(config_plugin_base+IPX_DATA_START), sizeof(*o));
+    }
+
+    if(rednand && redseeprom) {
+        config_plugin_base = ancast_plugin_next;
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)redseeprom, SEEPROM_SIZE);
+        prsh_set_entry("seeprom", (void*)(config_plugin_base+IPX_DATA_START), SEEPROM_SIZE);
     }
 
     return 0;

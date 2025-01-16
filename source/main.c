@@ -76,9 +76,11 @@ const char slc_plugin_dir[] = "slc:/sys/hax/ios_plugins";
 int main_loaded_from_boot1 = 0;
 bool minute_on_slc = false;
 bool minute_on_sd = false;
+bool use_minute_img = false;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
+bool auto_reload = true;
 
 int main_autoboot(void);
 void main_quickboot_patch_slc(void);
@@ -137,9 +139,14 @@ static bool load_fw_from_sd_fat(void){
                 return false;
             }
         }
-        res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
-        if (res != FR_OK) {
-            return false;
+        res = f_open(&f, "sdmc:/minute.img", FA_OPEN_EXISTING | FA_READ);
+        if (res == FR_OK) {
+            use_minute_img = true;
+        } else {
+            res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
+            if (res != FR_OK) {
+                return false;
+            }
         }
         res = f_read(&f, (void*)ALL_PURPOSE_TMP_BUF, 0x800000, &read);
         f_close(&f);
@@ -482,24 +489,30 @@ u32 _main(void *base)
         int res = isfshax_refresh();
         prsh_add_entry("isfshax_refresh", (void*)res, 0, NULL);
         serial_send_u32(0x5D4D0004);
-        bool ok = read_ancast("slc:/sys/hax/fw.img");
-        if(ok)
-            boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
-        serial_send_u32(0x5D4D0005);
-        if(boot.vector){
-            boot.mode = 0;
-            menu_reset();
-            minute_on_slc = true;
-            serial_send_u32(0x5D4D006);
-        }
     }
-    #endif //ISFSHAX_STAGE2 
+#endif // ISFSHAX_STAGE2
+
     
-    if(!boot.vector)
-        boot.vector = load_fw_from_sd(!slc_mounted);
+    boot.vector = load_fw_from_sd(!slc_mounted);
 
 #ifdef ISFSHAX_STAGE2
     if(slc_mounted){
+        if(!boot.vector) {
+            bool ok = read_ancast("slc:/sys/hax/minute.img");
+            if(ok)
+                use_minute_img = true;
+            else
+                ok = read_ancast("slc:/sys/hax/fw.img");
+            if(ok)
+                boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
+            serial_send_u32(0x5D4D0005);
+            if(boot.vector){
+                boot.mode = 0;
+                menu_reset();
+                minute_on_slc = true;
+                serial_send_u32(0x5D4D006);
+            }
+        }
         if(!boot.vector) {
             serial_send_u32(0x5D4D0007);
             boot.vector = boot1_patch_isfshax();
@@ -549,6 +562,9 @@ boot:
     else
         memcpy(BOOT1_PASSALONG->magic_device, PASSALONG_MAGIC_DEVICE_SD, 8);
 
+    memcpy(BOOT1_PASSALONG->magic_minute_img, 
+            use_minute_img?PASSALONG_MAGIC_MINUTE_IMG:PASSALONG_MAGIC_FW_IMG, 8);
+
 #ifdef ISFSHAX_STAGE2
     memcpy(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_DECRYPTED, 8);
 
@@ -597,7 +613,7 @@ menu menu_main = {
         {"PRSH tweaks", &prsh_menu},
         {"Display crash log", &main_get_crash},
         {"Clear crash log", &main_reset_crash},
-        {"Restart minute", &main_reload},
+        {"Restart minute.img", &main_reload},
         {"Hardware reset", &main_reset},
         {"Power off", &main_shutdown},
         {"Credits", &main_credits},
@@ -655,6 +671,10 @@ u32 _main(void *base)
             memset(BOOT1_PASSALONG->magic_device, 0, 8);
         }
 
+        if (!memcmp(BOOT1_PASSALONG->magic_minute_img, PASSALONG_MAGIC_MINUTE_IMG, 8))
+            use_minute_img = true;
+        memset(BOOT1_PASSALONG->magic_minute_img, 0, 8);
+
         if (!memcmp(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_ENCRYPTED, 8))
         {
             prsh_is_encrypted = 1;
@@ -705,7 +725,8 @@ u32 _main(void *base)
 
     printf("boot_state: %X\n", boot_info_copy.boot_state);
  
-    bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
+    // PRSHhax has the timer flag set, but wasn't loaded from minute boot1 and shouldn't be treated as eco mode
+    bool is_eco_mode = (boot_info_copy.boot_state & PON_SMC_TIMER) && main_loaded_from_boot1;
     if(is_eco_mode) {
         printf("ECO Mode!\n");
         no_menu = no_gpu = true;
@@ -772,7 +793,9 @@ u32 _main(void *base)
     u32 sd_start = read32(LT_TIMER);
     u32 sd_end = sd_start;
 #endif
-#ifndef FASTBOOT
+#ifdef FASTBOOT
+    if(minute_on_sd) {
+#endif
     sdcard_init();
     printf("sdcard_init finished\n");
 
@@ -784,6 +807,9 @@ u32 _main(void *base)
 #ifdef MEASURE_TIME
     sd_end = read32(LT_TIMER);
 #endif
+#ifdef FASTBOOT
+    }
+#else
 
     crypto_check_de_Fused();
 
@@ -905,6 +931,11 @@ u32 _main(void *base)
     u32 ini_end = read32(LT_TIMER);
 #endif
 
+    if(is_iosu_reload && !auto_reload){
+        autoboot = 0;
+        no_menu = false;
+    }
+
     // idk?
     if (main_loaded_from_boot1) {
         write32(0xC, 0x20008000);
@@ -946,7 +977,10 @@ u32 _main(void *base)
 #endif
 
 #ifdef FASTBOOT
-    main_quickboot_patch_slc();
+    if(!minute_on_sd)
+        main_quickboot_patch_slc();
+    if(!boot.vector)
+        main_quickboot_patch();
 #else
     // Prompt user to skip autoboot, time = 0 will skip this.
     if(autoboot)
@@ -1091,6 +1125,9 @@ int boot_ini(const char* key, const char* value)
         main_force_pause = minini_get_bool(value, 0);
     else if(!strcmp(key, "allow_legacy_patches"))
         main_allow_legacy_patches = minini_get_bool(value, 0);
+    else if(!strcmp(key, "autoreload")){
+        auto_reload = minini_get_bool(value, true);
+    }
 
     return 0;
 }
@@ -1112,7 +1149,7 @@ void main_reload(void)
 {
     gfx_clear(GFX_ALL, BLACK);
 
-    boot.vector = ancast_iop_load("fw.img");
+    boot.vector = ancast_iop_load("minute.img");
     boot.needs_otp = 0;
     boot.is_patched = 0;
 
@@ -1120,7 +1157,7 @@ void main_reload(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load fw.img!\n");
+        printf("Failed to load minute.img!\n");
         console_power_to_continue();
     }
 }

@@ -12,5 +12,6 @@
 
 int seeprom_read(void *dst, int offset, int size);
 int seeprom_write(void *src, int offset, int size);
+void seeprom_erase(void);
 
 #endif

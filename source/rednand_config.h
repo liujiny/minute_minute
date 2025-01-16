@@ -1,5 +1,7 @@
 #include "types.h"
 
+#define SEEPROM_SIZE 512
+
 typedef struct {
     u32 lba_start;
     u32 lba_length;
