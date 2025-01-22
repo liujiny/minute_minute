@@ -37,10 +37,12 @@ sdcard.img
 ios.img
 fw.img
 boot1.img
+fw_fastboot.img
 ios_orig.img
 debug/
 debug_boot1/
 debug_isfshax/
+debug_fastboot/
 # my notes
 dram*.txt
 fat*.txt
