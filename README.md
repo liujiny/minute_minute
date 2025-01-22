@@ -4,6 +4,10 @@ doot dooo do do doot
 
 boot1 replacement based on minute, includes stuff like DRAM init and PRSH handling.
 
+![minute.png](minute.png)
+
+
+
 ## Autobooting
 
 Autobooting can be configured in the `[boot]` section in [minute/minute.ini](config_example/minute.ini). Set `autoboot` to the number (starting at 1) of the menu entry you want to autoboot. 0 disabled autobooting. A timeout in can be set with the `autoboot_timeout` option (default is 3).
@@ -42,7 +46,7 @@ MLC only redirection is still possible by disabling SCFM. But that requires a ML
 
 If a file `redotp.bin` is found on the SD card, it will be used instead of the real otp / otp.bin (for defuse). OTP redirection requires redirection of SLC, SLCCMPT and MLC.
 
-###  SEEPROM
+### SEEPROM
 
 SEEPROM redirection works similar to the OTP redirection, it looks for `redseeprom.bin`. If IOSU changes the SEEPROM, the changes won't be written back to the file and will be lost on reboot. The disc drive key is not redirected and is still read from the real SEEPROM.
 
