@@ -625,6 +625,15 @@ menu menu_main = {
 };
 #endif // !FASTBOOT
 
+static bool display_inited = false;
+static void enable_display(void){
+    if(display_inited)
+        return;
+    display_inited = true;
+    gpu_display_init();
+    gfx_init();
+}
+
 u32 _main(void *base)
 {
     (void)base;
@@ -638,12 +647,11 @@ u32 _main(void *base)
     size_t boot_info_size;
     boot_info_t boot_info_copy;
 #ifdef FASTBOOT
-    bool no_gpu = true;
+    bool no_menu = true;
     printf("FASTBOOT MODE!\n");
 #else
-    bool no_gpu = false;
+    bool no_menu = false;
 #endif
-    bool no_menu = no_gpu;
 #ifdef MEASURE_TIME
     u32 minute_start_time = read32(LT_TIMER);
 #endif
@@ -729,12 +737,12 @@ u32 _main(void *base)
     bool is_eco_mode = (boot_info_copy.boot_state & PON_SMC_TIMER) && main_loaded_from_boot1;
     if(is_eco_mode) {
         printf("ECO Mode!\n");
-        no_menu = no_gpu = true;
+        no_menu = true;
     }
 
     bool is_iosu_reload = boot_info_copy.boot_state & PFLAG_PON_RELOAD;
     if(is_iosu_reload){
-        no_gpu = true;
+        display_inited = true;
         if(prsh_exists_decrypted()){
             res = prsh_get_entry("minute_boot", (void**)&autoboot, NULL );
             if(!res && autoboot){
@@ -744,16 +752,6 @@ u32 _main(void *base)
             }
         }
     }
-#ifdef MEASURE_TIME
-    u32 graphic_start = read32(LT_TIMER);
-#endif
-    if(!no_gpu) {
-        gpu_display_init();
-        gfx_init();
-    }
-#ifdef MEASURE_TIME
-    u32 graphic_end = read32(LT_TIMER);
-#endif
 
     printf("minute loading\n");
 
@@ -816,6 +814,7 @@ u32 _main(void *base)
 
     // Write out our dumped OTP, if valid
     if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_OTP_MAGIC) {
+        enable_display();
         write32(PRSHHAX_OTPDUMP_PTR, 0);
         FILE* f_otp = fopen("sdmc:/otp.bin", "wb");
         if (f_otp)
@@ -846,6 +845,7 @@ u32 _main(void *base)
         memcpy(&otp, (void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp));
         has_no_otp_bin = 0;
     } else if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_FAIL_MAGIC) {
+        enable_display();
         write32(PRSHHAX_OTPDUMP_PTR, 0);
         printf("boot1 never jumped to payload! Offset or SEEPROM version might be incorrect.\n");
         printf("(try it again just in case, sometimes the resets can get weird)\n");
@@ -865,6 +865,7 @@ u32 _main(void *base)
             fclose(otp_file);
         }
         else {
+            enable_display();
             printf("Failed to load `sdmc:/otp.bin`!\nFirmware will fail to load.\n");
             has_no_otp_bin = 1;
 
@@ -888,8 +889,9 @@ u32 _main(void *base)
 
 #ifndef FASTBOOT
     int isfshax_refresh = 0;
-    prsh_get_entry("isfshax_refresh", (void**)&isfshax_refresh, NULL);
     if(isfshax_refresh){
+        enable_display();
+        prsh_get_entry("isfshax_refresh", (void**)&isfshax_refresh, NULL);
         print_isfshax_refresh_error(isfshax_refresh);
         console_power_to_continue();
     }
@@ -942,6 +944,7 @@ u32 _main(void *base)
     }
 
     if(sdcard_check_card() == SDMMC_NO_CARD){
+        enable_display();
         printf("No SD card inserted!\n");
         isfs_init(ISFSVOL_SLC);
         DIR* dir = opendir(slc_plugin_dir);
@@ -1024,7 +1027,7 @@ u32 _main(void *base)
             smc_set_notification_led(LEDRAW_RED);
             goto skip_menu;
         }
-
+        enable_display();
         printf("Showing menu...\n");
         menu_init(&menu_main);
 
@@ -1038,7 +1041,7 @@ skip_menu:
     u32 deinit_start = read32(LT_TIMER);
 #endif
 
-    if(!no_gpu)
+    if(display_inited && !is_iosu_reload)
         gpu_cleanup();
 
     printf("Unmounting SLC...\n");
