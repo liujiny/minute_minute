@@ -14,6 +14,12 @@
 #include <stdio.h>
 #include <string.h>
 
+static bool printf_to_display = false;
+
+void gfx_printf_to_display(bool on){
+	printf_to_display = on;
+}
+
 #ifdef MINUTE_HEADLESS
 void gfx_init(void)
 {
@@ -246,6 +252,9 @@ int printf(const char* fmt, ...)
 		serial_send(*str_iter);
 		str_iter++;
 	}
+
+	if(!printf_to_display)
+		return 0;
 
 	int lines = 0;
 	char* last_line = str;

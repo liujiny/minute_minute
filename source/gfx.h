@@ -31,6 +31,7 @@ bool gfx_is_currently_headless(void);
 void gfx_draw_plot(gfx_screen_t screen, int x, int y, u32 color);
 void gfx_clear(gfx_screen_t screen, u32 color);
 void gfx_draw_string(gfx_screen_t screen, char* str, int x, int y, u32 color);
+void gfx_printf_to_display(bool on);
 
 #ifdef MINUTE_BOOT1
 static inline int printf(const char* fmt, ...)

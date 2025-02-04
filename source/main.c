@@ -627,6 +627,7 @@ menu menu_main = {
 
 static bool display_inited = false;
 static void enable_display(void){
+    gfx_printf_to_display(true);
     if(display_inited)
         return;
     display_inited = true;
