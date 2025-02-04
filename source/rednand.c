@@ -311,7 +311,7 @@ static int rednand_load_seeprom(void) {
     printf("INFO: Trying to load %s... ", redseeprom_path);
     FILE* file = fopen(redseeprom_path, "rb");
     if (!file){
-        printf("NOT FOUND!\n");
+        printf("not found, OK\n");
         return 0;
     }
     printf("FOUND!\n");
@@ -337,7 +337,7 @@ static int rednand_load_opt(void){
     printf("INFO: Trying to load %s... ", redotp_path);
     FILE* otp_file = fopen(redotp_path, "rb");
     if (!otp_file){
-        printf("NOT FOUND!\n");
+        printf("not found, OK\n");
         return 0;
     }
     printf("FOUND!\n");

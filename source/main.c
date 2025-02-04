@@ -634,6 +634,13 @@ static void enable_display(void){
     gfx_init();
 }
 
+static void error_wait(char *message){
+    enable_display();
+    if(message)
+        printf(message);
+    console_power_to_continue();
+}
+
 u32 _main(void *base)
 {
     (void)base;
@@ -865,11 +872,8 @@ u32 _main(void *base)
             fclose(otp_file);
         }
         else {
-            enable_display();
-            printf("Failed to load `sdmc:/otp.bin`!\nFirmware will fail to load.\n");
+            error_wait("Failed to load `sdmc:/otp.bin`!\nFirmware will fail to load.\n");
             has_no_otp_bin = 1;
-
-            console_power_to_continue();
         }
     }
 
@@ -1065,6 +1069,7 @@ skip_menu:
     switch(boot.mode) {
         case 0:
             if (boot.vector && main_force_pause) {
+                enable_display();
                 printf("IOS is loaded and ready to launch!\n");
                 printf("Swap SD card now...\n");
                 console_power_to_continue();
@@ -1145,7 +1150,7 @@ int main_autoboot(void)
     menu_item entry = menu_main.option[menu_main.selected];
     printf("Autobooting %i: %s\n", autoboot, entry.text);
     entry.callback();
-    return 0;
+    return !boot.vector;
 }
 
 void main_reload(void)
@@ -1160,8 +1165,7 @@ void main_reload(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load minute.img!\n");
-        console_power_to_continue();
+        error_wait("Failed to load minute.img!\n");
     }
 }
 
@@ -1214,7 +1218,7 @@ void main_quickboot_patch_slc(void)
 {
     gfx_clear(GFX_ALL, BLACK);
     if(isfs_init(ISFSVOL_SLC)<0){
-        console_power_to_continue();
+        error_wait("Error mounting SLC\n");
         return;
     }
     boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir, false); // ios_orig.img
@@ -1225,22 +1229,20 @@ void main_quickboot_patch_slc(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load IOS with patches!\n");
-        console_power_to_continue();
+        error_wait("Failed to load IOS with patches!\n");
     }
 }
 
 void main_quickboot_isfshax(void){
     gfx_clear(GFX_ALL, BLACK);
     if(isfs_init(ISFSVOL_SLC)<0){
-        console_power_to_continue();
+        error_wait("Error mounting SLC\n");
         return;
     }
 
     boot.vector = boot1_patch_isfshax();
     if(!boot.vector){
-        printf("Failed to load IOS with ISFShax patch\n");
-        console_power_to_continue();
+        error_wait("Failed to load IOS with ISFShax patch\n");
         return;
     }
 
@@ -1253,7 +1255,7 @@ void main_quickboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
     if(isfs_init(ISFSVOL_SLC)<0){
-        console_power_to_continue();
+        error_wait("Error mounting SLC\n");
         return;
     }
     boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, false); // ios_orig.img
@@ -1264,8 +1266,7 @@ void main_quickboot_patch(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load IOS with patches!\n");
-        console_power_to_continue();
+        error_wait("Failed to load IOS with patches!\n");
     }
 }
 
@@ -1280,8 +1281,7 @@ void main_swapboot_patch(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load IOS with patches!\n");
-        console_power_to_continue();
+        error_wait("Failed to load IOS with patches!\n");
     }
 }
 
@@ -1290,10 +1290,11 @@ void main_quickboot_patch_rednand(void)
     gfx_clear(GFX_ALL, BLACK);
     int error = init_rednand();
     if(error<0){
-        console_power_to_continue();
+        error_wait("Error with redNAND config or SD setup\n");
         return;
     }
     if(error){
+        enable_display();
         printf("Continue\n");
         if (console_abort_confirmation_power_no_eject_yes()){
             clear_rednand();
@@ -1302,13 +1303,13 @@ void main_quickboot_patch_rednand(void)
     }
     if(rednand.slc.lba_length){
         if(isfs_init(ISFSVOL_REDSLC)<0){
-            console_power_to_continue();
+            error_wait("Error mounting redNAND SLC\n");
             return;
         }
         boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
     } else {
         if(isfs_init(ISFSVOL_SLC)<0){
-            console_power_to_continue();
+            error_wait("Error mounting SLC\n");
             return;
         }
         boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
@@ -1320,8 +1321,7 @@ void main_quickboot_patch_rednand(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load IOS with patches!\n");
-        console_power_to_continue();
+        error_wait("Failed to load IOS with patches!\n");
     }
 }
 
@@ -1329,10 +1329,11 @@ void main_swapboot_patch_rednand(void)
 {
     int error = init_rednand();
     if(error<0){
-        console_power_to_continue();
+        error_wait("Error with redNAND config or SD setup\n");
         return;
     }
     if(error){
+        enable_display();
         printf("Continue\n");
         if (console_abort_confirmation_power_no_eject_yes()){
             clear_rednand();
@@ -1348,8 +1349,7 @@ void main_swapboot_patch_rednand(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load IOS with patches!\n");
-        console_power_to_continue();
+        error_wait("Failed to load IOS with patches!\n");
     }
 }
 
@@ -1365,8 +1365,7 @@ void main_quickboot_fw(void)
         boot.mode = 0;
         menu_reset();
     } else {
-        printf("Failed to load 'ios.img'!\n");
-        console_power_to_continue();
+        error_wait("Failed to load 'ios.img'!\n");
     }
 }
 
@@ -1385,6 +1384,7 @@ void main_boot_fw(void)
         boot.mode = 0;
         menu_reset();
     } else {
+        enable_display();
         printf("Failed to load '%s'!\n", path);
         console_power_to_continue();
     }
