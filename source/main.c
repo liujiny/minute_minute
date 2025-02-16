@@ -625,8 +625,11 @@ menu menu_main = {
 };
 #endif // !FASTBOOT
 
+static bool is_eco_mode = false; 
 static bool display_inited = false;
 static void enable_display(void){
+    if(is_eco_mode)
+        return;
     gfx_printf_to_display(true);
     if(display_inited)
         return;
@@ -742,7 +745,7 @@ u32 _main(void *base)
     printf("boot_state: %X\n", boot_info_copy.boot_state);
  
     // PRSHhax has the timer flag set, but wasn't loaded from minute boot1 and shouldn't be treated as eco mode
-    bool is_eco_mode = (boot_info_copy.boot_state & PON_SMC_TIMER) && main_loaded_from_boot1;
+    is_eco_mode = (boot_info_copy.boot_state & PON_SMC_TIMER) && main_loaded_from_boot1;
     if(is_eco_mode) {
         printf("ECO Mode!\n");
         no_menu = true;
@@ -949,7 +952,6 @@ u32 _main(void *base)
     }
 
     if(sdcard_check_card() == SDMMC_NO_CARD){
-        enable_display();
         printf("No SD card inserted!\n");
         isfs_init(ISFSVOL_SLC);
         DIR* dir = opendir(slc_plugin_dir);
