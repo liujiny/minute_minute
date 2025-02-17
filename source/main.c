@@ -951,6 +951,7 @@ u32 _main(void *base)
         write32(0xC, 0x20008000);
     }
 
+#ifndef FASTBOOT
     if(sdcard_check_card() == SDMMC_NO_CARD){
         printf("No SD card inserted!\n");
         isfs_init(ISFSVOL_SLC);
@@ -961,7 +962,7 @@ u32 _main(void *base)
             autoboot = 1;
         }
     }
-
+#endif
     //isfs_test();
 
 #if 0
