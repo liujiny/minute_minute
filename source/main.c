@@ -1049,7 +1049,7 @@ skip_menu:
     u32 deinit_start = read32(LT_TIMER);
 #endif
 
-    if(display_inited && !is_iosu_reload)
+    if(!is_iosu_reload)
         gpu_cleanup();
 
     printf("Unmounting SLC...\n");
