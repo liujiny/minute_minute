@@ -58,3 +58,4 @@ In the `partitions` section you configure which redNAND partitions should be use
 In the `scfm` section you configure the SCFM options. `disable` will disable the SCFM, which is required for MLC only redirection. Minute will also check if the type of the MLC partition matches this setting. The `allow_sys` allows configurations that would make your sys scfm inconsistent. This option is strongly discouraged and can will lead to corruption and data loss on the sys nand if you don't know what you are doing.
 It is also possible to disable the encryption for the MLC redNAND partition using the `disable_encryption` option.
 The system MLC can be mounted as USB device, to exachange data between sysNAND and redNAND.
+For setting up MLC only redNAND use this guide: [How to setup redNAND (gbatemp)](https://gbatemp.net/threads/fixing-system-memory-error-160-0103-failing-emmc-without-soldering-using-rednand-with-isfshax.642268/)
