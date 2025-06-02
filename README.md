@@ -11,7 +11,7 @@ boot1 replacement based on minute, includes stuff like DRAM init and PRSH handli
 
 ## Autobooting
 
-Autobooting can be configured in the `[boot]` section in [minute/minute.ini](config_example/minute.ini). Set `autoboot` to the number (starting at 1) of the menu entry you want to autoboot. 0 disabled autobooting. A timeout in can be set with the `autoboot_timeout` option (default is 3).
+Autobooting can be configured in the `[boot]` section in [minute/minute.ini](config_example/minute.ini). Set `autoboot` to the number (starting at 1) of the menu entry you want to autoboot. 0 disables autobooting. A timeout in seconds can be set with the `autoboot_timeout` option (default is 3).
 
 If no SD card is inserted, minute was loaded from SLC and the `slc:/sys/hax/ios_plugins` directory exists minute will try autobooting from SLC (first option in minute).
 
@@ -24,7 +24,7 @@ To prepare an SD card for usage with minute you can either use the `Format redNA
 
 ### Format redNAND
 
-The `Format redNAND` option will erase the FAT32 partition and recreate it smaller to make room for the redNAND partitions. If it is already small enough it won't be touched. All other partitions will get deleted an the three redNAND partitions will be created and the content of the real devices will be cloned to them.
+The `Format redNAND` option will erase the FAT32 partition and recreate it smaller to make room for the redNAND partitions. If it is already small enough it won't be touched. All other partitions will get deleted and the three redNAND partitions will be created and the content of the real devices will be cloned to them.
 
 ### Partition manually
 
@@ -41,7 +41,7 @@ Windows Disk Mangement doesn't support multiple partitions on SD cards, so you n
 ### SCFM
 
 SCFM is a block level write cache for the MLC which resides on the SLC. This creates a coupling between to SLC and the MLC, which needs to be consistent at all times. You can not restore one without the other. This also means using the red MLC with the sys SLC or the other way around is not allowed unless explicitly enabled to prevent damage to the sys nand. \
-MLC only redirection is still possible by disabling SCFM. But that requires a MLC, which is consistent without SCFM. There are two ways to archive that. Either [rebuid a fresh MLC](https://gbatemp.net/threads/how-to-upgrading-rebuilding-wii-u-internal-memory-mlc.636309/) on the redNAND partition or use a MLC Dump which was obtained through the [recovery_menu](https://github.com/jan-hofmeier/recovery_menu/releases). Format the Partition to NTFS before writing the backup to change the ID to the correct type. The MLC clone obtained bye `Format redNAND` option requires SCFM, same for the mlc.bin obtained by the original nanddumper.
+MLC only redirection is still possible by disabling SCFM. But that requires a MLC, which is consistent without SCFM. There are two ways to archive that. Either [rebuid a fresh MLC](https://gbatemp.net/threads/how-to-upgrading-rebuilding-wii-u-internal-memory-mlc.636309/) on the redNAND partition or use a MLC Dump which was obtained through the [recovery_menu](https://github.com/jan-hofmeier/recovery_menu/releases). Format the Partition to NTFS before writing the backup to change the ID to the correct type. The MLC clone obtained by the `Format redNAND` option requires SCFM, same for the mlc.bin obtained by the original nanddumper.
 
 ### OTP
 
@@ -57,5 +57,5 @@ redNAND is configured by the [sd:/minute/rednand.ini](config_example/rednand.ini
 In the `partitions` section you configure which redNAND partitions should be used. You can omit partitions that you don't want to use, but minute will warn about omitted if the partition exists on the SD. \
 In the `scfm` section you configure the SCFM options. `disable` will disable the SCFM, which is required for MLC only redirection. Minute will also check if the type of the MLC partition matches this setting. The `allow_sys` allows configurations that would make your sys scfm inconsistent. This option is strongly discouraged and can will lead to corruption and data loss on the sys nand if you don't know what you are doing.
 It is also possible to disable the encryption for the MLC redNAND partition using the `disable_encryption` option.
-The system MLC can be mounted as USB device, to exachange data between sysNAND and redNAND.
+The system MLC can be mounted as a USB device, to exachange data between sysNAND and redNAND.
 For setting up MLC only redNAND use this guide: [How to setup redNAND (gbatemp)](https://gbatemp.net/threads/fixing-system-memory-error-160-0103-failing-emmc-without-soldering-using-rednand-with-isfshax.642268/)
