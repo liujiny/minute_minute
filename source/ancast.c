@@ -34,6 +34,8 @@
 
 #include "rednand.h"
 
+#define ANCAST_PLUGIN_NOT_FOUND_SUPPRESSED ((uintptr_t)0)
+
 extern bool minute_on_slc;
 extern bool minute_on_sd;
 extern bool use_minute_img;
@@ -788,7 +790,7 @@ u32 ancast_plugin_check_size(const char* fn_plugin, const char* plugins_fpath)
     return (u32)ALIGN_FORWARD(max_addr, 0x1000);
 }
 
-u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugins_fpath)
+u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugins_fpath, bool suppress_error_if_not_found)
 {
     char tmp[256];
     u8* plugin_base = (u8*)base; // TODO dynamic
@@ -797,8 +799,14 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
     {
-        printf("ancast: failed to open plugin `%s`!\n", tmp);
-        return base;
+        if (suppress_error_if_not_found) {
+            // Don't print, return special error code
+            return ANCAST_PLUGIN_NOT_FOUND_SUPPRESSED;
+        } else {
+            // Original behavior
+            printf("ancast: failed to open plugin `%s`!\n", tmp);
+            return base; // Returns the original base address
+        }
     }
     else {
         printf("ancast: loading plugin `%s` to %08x\n", tmp, base);
@@ -914,18 +922,68 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
 
     ancast_plugins_base = RAMDISK_END_ADDR - total_size;
     ancast_plugin_next = ancast_plugins_base;
-    ancast_plugin_last = 0;
+    ancast_plugin_last = 0; // Ensure ancast_plugin_last is reset
+    bool wafel_core_loaded = false;
 
-    ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, wafel_core_fn, plugins_fpath);
-    for (int i = 0; i < ancast_plugins_count; i++)
-    {
-        ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
+    // Load wafel_core.ipx
+    uintptr_t core_load_address = ancast_plugin_next;
+    uintptr_t core_load_result = ancast_plugin_load(core_load_address, wafel_core_fn, plugins_fpath, true);
+
+    if (core_load_result == ANCAST_PLUGIN_NOT_FOUND_SUPPRESSED) {
+        printf("ancast: wafel_core.ipx not found, skipping.\n");
+        wafel_core_loaded = false;
+        // If wafel_core is not found, ancast_plugins_base might not be a valid ELF,
+        // so we should not try to use it later for ABI checks if no other plugins are loaded.
+        // ancast_plugin_next remains unchanged, other plugins might still load.
+    } else if (core_load_result == core_load_address) {
+        printf("ancast: failed to load wafel_core.ipx (error or invalid magic), returned original base address.\n");
+        if (ancast_plugins_list) {
+            for (int k = 0; k < ancast_plugins_count; k++) { if (ancast_plugins_list[k] != NULL) free(ancast_plugins_list[k]); }
+            free(ancast_plugins_list); ancast_plugins_list = NULL;
+        }
+        return -1;
+    } else {
+        ancast_plugin_next = core_load_result;
+        wafel_core_loaded = true;
     }
 
-    u32 abi_version = ancast_get_abi_version(ancast_plugins_base);
-    if(abi_version != STROOPWAFEL_ABI_VERSION) {
-        printf("Incompatible stroopwafel ABI version. minute abi: 0x%X, stroopwafel abi: 0x%X\n", STROOPWAFEL_ABI_VERSION, abi_version);
-        return -2;
+    // Load other plugins
+    for (int i = 0; i < ancast_plugins_count; i++)
+    {
+        uintptr_t current_plugin_target_addr = ancast_plugin_next;
+        uintptr_t plugin_load_result = ancast_plugin_load(current_plugin_target_addr, ancast_plugins_list[i], plugins_fpath, false);
+
+        if (plugin_load_result == current_plugin_target_addr) {
+            printf("ancast: failed to load plugin %s, aborting.\n", ancast_plugins_list[i]);
+            if (ancast_plugins_list) {
+                for (int k = 0; k < ancast_plugins_count; k++) { if (ancast_plugins_list[k] != NULL) free(ancast_plugins_list[k]); }
+                free(ancast_plugins_list); ancast_plugins_list = NULL;
+            }
+            return -1;
+        }
+        ancast_plugin_next = plugin_load_result;
+    }
+
+    // Terminate ELF plugin chain
+    if (ancast_plugin_last != 0) {
+        ancast_plugin_set_next(ancast_plugin_last, 0);
+    }
+
+    // ABI Version Check
+    if (wafel_core_loaded) {
+        u32 abi_version = ancast_get_abi_version(ancast_plugins_base);
+        if(abi_version != STROOPWAFEL_ABI_VERSION) {
+            printf("Incompatible stroopwafel ABI version. minute abi: 0x%X, stroopwafel abi: 0x%X\n", STROOPWAFEL_ABI_VERSION, abi_version);
+            if (ancast_plugins_list) {
+                for (int k = 0; k < ancast_plugins_count; k++) { if (ancast_plugins_list[k] != NULL) free(ancast_plugins_list[k]); }
+                free(ancast_plugins_list); ancast_plugins_list = NULL;
+            }
+            return -2;
+        }
+    } else if (ancast_plugins_count > 0) {
+            printf("ancast: wafel_core.ipx not loaded, cannot check Stroopwafel ABI version.\n");
+    } else {
+            printf("ancast: No ELF plugins loaded.\n");
     }
 
     // Load DATA segments
