@@ -46,8 +46,11 @@ struct sdcard_ctx {
     int new_card; // set to 1 everytime a new card is inserted
     int multiple_fallback;
 
-    u32 num_sectors;
+    // u32 num_sectors; // Replaced by card_info.num_sectors
     u16 rca;
+    // Note: sdcard_ctx doesn't store cid/csd directly in the struct currently,
+    // but sdmmc_card_info_t will hold them.
+    sdmmc_card_info_t card_info;
 };
 
 static struct sdcard_ctx card;
@@ -154,8 +157,8 @@ void sdcard_needs_discover(void)
         ocr |= SD_OCR_SDHC_CAP;
     DPRINTF(2, ("sdcard: SEND_IF_COND ocr: %x\n", ocr));
 
-    // TODO remove?
-    card.sdhc_blockmode = 1;
+    card.card_info.is_sd = true; // This is an SD card
+    card.sdhc_blockmode = 1; // TODO: review if sdhc_blockmode also belongs in sdmmc_card_info_t or remains specific
     card.selected = 0;
     card.inserted = 1;
     card.multiple_fallback = 0;
@@ -218,6 +221,7 @@ void sdcard_needs_discover(void)
 
     resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
+    memcpy(card.card_info.cid, cmd.c_resp, 16); // Store CID
     printf("CID: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
     printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
         resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
@@ -254,12 +258,13 @@ void sdcard_needs_discover(void)
     resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
     memcpy(csd_bytes, resp, 16);
+    memcpy(card.card_info.csd, cmd.c_resp, 16); // Store CSD
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
     if (csd_bytes[13] == 0xe) { // sdhc
         unsigned int c_size = csd_bytes[7] << 16 | csd_bytes[6] << 8 | csd_bytes[5];
         printf("sdcard: sdhc mode, c_size=%u, card size = %uk\n", c_size, (c_size + 1)* 512);
-        card.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
+        card.card_info.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
     }
     else {
         unsigned int taac, nsac, read_bl_len, c_size, c_size_mult;
@@ -274,7 +279,7 @@ void sdcard_needs_discover(void)
         c_size_mult |= csd_bytes[4] >> 7;
         printf("taac=%u nsac=%u read_bl_len=%u c_size=%u c_size_mult=%u card size=%u bytes\n",
             taac, nsac, read_bl_len, c_size, c_size_mult, (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len));
-        card.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
+        card.card_info.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
     }
 
     sdcard_select();
@@ -872,7 +877,15 @@ int sdcard_get_sectors(void)
 
 //  sdhc_error(sdhci->reg_base, "num sectors = %u", sdhci->num_sectors);
 
-    return card.num_sectors;
+    return card.card_info.num_sectors;
+}
+*/ // Removing sdcard_get_sectors
+
+// Unified accessor function implementation
+const sdmmc_card_info_t* sdcard_get_card_info(void) {
+    // Assumes sdcard_init has been called, which calls sdcard_needs_discover.
+    // card.card_info.is_sd is set to true during sdcard_needs_discover.
+    return &card.card_info;
 }
 
 void sdcard_irq(void)

@@ -58,6 +58,9 @@ void dump_set_sata_type_6(void);
 void dump_set_sata_type_7(void);
 void dump_set_sata_type_8(void);
 
+// Forward declaration for the menu callback
+void mlc_print_info_menu(void);
+
 static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(NAND_DATA_ALIGN);
 static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(NAND_DATA_ALIGN);
 
@@ -152,15 +155,122 @@ const char* _dump_sata_type_str(int type)
     }
 }
 
+static void print_sdmmc_card_info(const sdmmc_card_info_t* card_info, const char* device_name) {
+    if (!card_info) {
+        printf("%s: Error retrieving card data.\n", device_name);
+        return;
+    }
+
+    printf("\n--- %s Information ---\n", device_name);
+    printf("Type: %s\n", card_info->is_sd ? "SD Card" : "eMMC");
+
+    // CID Parsing (using specified, potentially non-standard, byte indices)
+    // MID: card_info->cid[14]
+    u8 mid = card_info->cid[14];
+    printf("Manufacturer ID (MID): 0x%02X\n", mid);
+
+    // OID: (card_info->cid[13] << 8) | card_info->cid[12]
+    u16 oid = (card_info->cid[13] << 8) | card_info->cid[12];
+    // Printing OID as hex and attempting char conversion.
+    // ASCII check for individual bytes:
+    char oid_char1 = (card_info->cid[13] >= 32 && card_info->cid[13] <= 126) ? card_info->cid[13] : '.';
+    char oid_char2 = (card_info->cid[12] >= 32 && card_info->cid[12] <= 126) ? card_info->cid[12] : '.';
+    printf("OEM/Application ID (OID): 0x%04X (%c%c)\n", oid, oid_char1, oid_char2);
+
+    // PNM: card_info->cid[11] down to card_info->cid[6] (6 chars)
+    char pnm_str[7];
+    pnm_str[0] = card_info->cid[11];
+    pnm_str[1] = card_info->cid[10];
+    pnm_str[2] = card_info->cid[9];
+    pnm_str[3] = card_info->cid[8];
+    pnm_str[4] = card_info->cid[7];
+    pnm_str[5] = card_info->cid[6];
+    pnm_str[6] = '\0';
+    for(int i=0; i<6; i++) { // Filter non-printable characters
+        if (pnm_str[i] < 32 || pnm_str[i] > 126) pnm_str[i] = '.';
+    }
+    printf("Product Name (PNM): %s\n", pnm_str);
+
+    // PRV: card_info->cid[3] (upper nibble major, lower nibble minor)
+    u8 prv_byte = card_info->cid[3];
+    int prv_major = (prv_byte >> 4) & 0x0F;
+    int prv_minor = prv_byte & 0x0F;
+    printf("Product Revision (PRV): %d.%d\n", prv_major, prv_minor);
+
+    // PSN: print raw hex of card_info->cid[2], card_info->cid[1], card_info->cid[0], card_info->cid[15]
+    printf("Product Serial Number (PSN) raw bytes [2,1,0,15]: 0x%02X%02X%02X%02X\n",
+           card_info->cid[2], card_info->cid[1], card_info->cid[0], card_info->cid[15]);
+
+    // MDT: card_info->cid[15] (lower nibble month, upper nibble year offset from 2000)
+    // This conflicts with cid[15] being part of PSN raw print.
+    u8 mdt_byte = card_info->cid[15];
+    int mdt_month = mdt_byte & 0x0F;
+    int mdt_year_offset = (mdt_byte >> 4) & 0x0F;
+    int mdt_year = mdt_year_offset + 2000;
+    printf("Manufacturing Date (MDT from cid[15]): %02d/%04d (Year offset: %d)\n", mdt_month, mdt_year, mdt_year_offset);
+    if (mdt_month == 0 || mdt_month > 12) {
+         printf(" (Warning: Invalid MDT month from cid[15])\n");
+    }
+
+    // Card Size
+    if (card_info->num_sectors > 0) {
+        unsigned long long card_size_bytes = (unsigned long long)card_info->num_sectors * 512;
+        unsigned long long card_size_mb = card_size_bytes / (1024 * 1024);
+        // unsigned long long card_size_gb = card_size_bytes / (1024 * 1024 * 1024); // GB can be added if needed
+        printf("Size: %llu MB (%llu sectors)\n", card_size_mb, (unsigned long long)card_info->num_sectors);
+    } else {
+        printf("Size: Unknown (0 sectors reported)\n");
+    }
+
+    printf("Raw CID (16 bytes):\n");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", card_info->cid[i]);
+        if ((i + 1) % 16 == 0 && i < 15) printf("\n"); // Newline after 16 bytes, or adjust for better formatting
+        else if ((i+1) % 8 == 0 && i < 15 ) printf(" ");
+    }
+    printf("\n");
+
+    printf("Raw CSD (16 bytes):\n");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", card_info->csd[i]);
+        if ((i + 1) % 16 == 0 && i < 15) printf("\n");
+        else if ((i+1) % 8 == 0 && i < 15 ) printf(" ");
+    }
+    printf("\n");
+    printf("--- End of %s Information ---\n", device_name);
+}
+
+// This function is called by an entry in menu_dump
+void mlc_print_info_menu(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Attempting to retrieve MLC Information...\n");
+
+    if (mlc_init() != 0) {
+        printf("MLC Init Error\n");
+        printf("Could not initialize the MLC device.\n");
+        console_power_to_exit();
+        return;
+    }
+
+    const sdmmc_card_info_t* info = mlc_get_card_info();
+    // print_sdmmc_card_info handles NULL info check internally
+    print_sdmmc_card_info(info, "MLC");
+
+    console_power_to_exit();
+}
+
 void dump_menu_show()
 {
     menu_init(&menu_dump);
 }
 
 static u32 dump_get_iosu_mlc_sectors(void){
-    u32 sectors = mlc_get_sectors();
-    if(sectors == -1)
-        return -1;
+    const sdmmc_card_info_t* mlc_info = mlc_get_card_info();
+    if (!mlc_info) return (u32)-1; // Error if no info
+    u32 sectors = mlc_info->num_sectors;
+    // if(sectors == -1) // num_sectors is u32, so -1 check is not typical here unless an error val
+    //     return -1;
     if (sectors < 0xe60000) {
         // smaller than 8GB
         sectors -= 1;

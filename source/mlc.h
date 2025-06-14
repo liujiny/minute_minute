@@ -28,7 +28,7 @@ int mlc_wait_data(void);
 int mlc_select(void);
 int mlc_check_card(void);
 int mlc_ack_card(void);
-u32 mlc_get_sectors(void);
+// u32 mlc_get_sectors(void); // Replaced by mlc_get_card_info()
 
 int mlc_read(u32 blk_start, u32 blk_count, void *data);
 int mlc_write(u32 blk_start, u32 blk_count, void *data);
@@ -41,10 +41,7 @@ int mlc_end_write(struct sdmmc_command* cmdbuf);
 
 int mlc_erase(void);
 
-// Accessor functions for MLC data
-const u8* mlc_get_cid(void);
-const u8* mlc_get_csd(void);
-u32 mlc_get_num_sectors(void);
-bool mlc_get_is_sd(void);
+// Unified accessor for MLC data
+const sdmmc_card_info_t* mlc_get_card_info(void);
 
 #endif
