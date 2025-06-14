@@ -22,6 +22,7 @@
 #include <elf.h>
 #include <stddef.h>
 #include <dirent.h>
+#include <unistd.h>
 
 #include "sha.h"
 #include "crypto.h"
@@ -794,15 +795,22 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
     u8* plugin_base = (u8*)base; // TODO dynamic
     snprintf(tmp, sizeof(tmp)-1, "%s/%s", plugins_fpath, fn_plugin);
 
+    // Check if the file exists
+    if (access(tmp, F_OK) == -1) {
+        // File does not exist
+        if (!strcmp(fn_plugin, wafel_core_fn)) {
+            // If it's wafel_core.fn, skip error and return base
+            return base;
+        }
+        // For other files, proceed to fopen to print the standard error
+    }
+
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
     {
-        // fn_plugin is the second parameter to ancast_plugin_load (e.g., "wafel_core.ipx")
-        // wafel_core_fn is a global const char[] defined in ancast.c as "wafel_core.ipx";
-        if (strcmp(fn_plugin, wafel_core_fn) != 0) { // If it's NOT wafel_core.ipx
-            printf("ancast: failed to open plugin `%s`!\n", tmp); // tmp contains the full path constructed from fn_plugin
-        }
-        return base; // Return original base address, indicating failure to load
+        // If fopen fails (either file didn't exist and wasn't wafel_core.fn, or other fopen error)
+        printf("ancast: failed to open plugin `%s`!\n", tmp);
+        return base;
     }
     else {
         printf("ancast: loading plugin `%s` to %08x\n", tmp, base);
@@ -919,75 +927,17 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
     ancast_plugins_base = RAMDISK_END_ADDR - total_size;
     ancast_plugin_next = ancast_plugins_base;
     ancast_plugin_last = 0;
-    bool wafel_core_loaded = false; // Initialize flag
 
-    // Load wafel_core.ipx
-    uintptr_t core_load_address = ancast_plugin_next; // ancast_plugin_next is initially ancast_plugins_base
-    // ancast_plugin_load now returns core_load_address (== base) if fopen fails or ELF magic is bad.
-    // If fopen fails for wafel_core.ipx, it's silent. If ELF magic is bad, it prints.
-    uintptr_t core_load_result = ancast_plugin_load(core_load_address, wafel_core_fn, plugins_fpath);
-
-    // A successful load returns a new address (base + size).
-    // read32(core_load_address) checks the magic number at the target load address.
-    // Note: ancast_plugin_load already performs an internal magic check and returns 'base' (which is core_load_address here)
-    // if the magic is bad AFTER successfully opening and reading the file. So read32(core_load_address) is redundant if core_load_result != core_load_address.
-    // The primary check for success is that core_load_result is different from core_load_address.
-    if (core_load_result != core_load_address) {
-        // Successfully loaded wafel_core.ipx because ancast_plugin_load returned an advanced address
-        ancast_plugin_next = core_load_result; // Advance past loaded plugin
-        wafel_core_loaded = true;
-        // ancast_plugin_last would have been updated by the successful ancast_plugin_load
-    } else {
-        // wafel_core.ipx failed to load (either not found, or bad magic/read error after open).
-        // ancast_plugin_load would have been silent if not found, or printed if bad magic/read error.
-        // Set wafel_core_loaded to false (already done by initialization).
-        // Do NOT return -1 here. Loading of other plugins should continue.
-        // ancast_plugin_next remains at core_load_address.
-        // ancast_plugin_last is not updated if wafel_core.ipx failed.
-        // (No specific printf here as ancast_plugin_load handles relevant prints)
-    }
-
-    // Load other plugins
+    ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, wafel_core_fn, plugins_fpath);
     for (int i = 0; i < ancast_plugins_count; i++)
     {
-        uintptr_t current_plugin_target_addr = ancast_plugin_next;
-        uintptr_t plugin_load_result = ancast_plugin_load(current_plugin_target_addr, ancast_plugins_list[i], plugins_fpath);
-
-        // If ancast_plugin_load returns the same address, it means failure (fopen failed, or fread failed, or magic was bad)
-        if (plugin_load_result == current_plugin_target_addr) {
-            // ancast_plugin_load would have printed "failed to open" or "invalid magic"
-            printf("ancast: failed to load plugin %s, aborting plugin loading.\n", ancast_plugins_list[i]);
-            if (ancast_plugins_list) {
-                for (int k = 0; k < ancast_plugins_count; k++) { if (ancast_plugins_list[k] != NULL) free(ancast_plugins_list[k]); }
-                free(ancast_plugins_list); ancast_plugins_list = NULL;
-            }
-            return -1;
-        }
-        ancast_plugin_next = plugin_load_result;
+        ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
 
-    // Terminate ELF plugin chain - this should be done regardless of wafel_core.ipx success
-    // if any plugin was successfully loaded and updated ancast_plugin_last.
-    if (ancast_plugin_last != 0) {
-        ancast_plugin_set_next(ancast_plugin_last, 0);
-    }
-
-    // ABI Version Check
-    if (wafel_core_loaded) {
-        // ancast_plugins_base is where wafel_core.ipx was targeted.
-        u32 abi_version = ancast_get_abi_version(ancast_plugins_base);
-        if (abi_version != STROOPWAFEL_ABI_VERSION) {
-            printf("Incompatible stroopwafel ABI version. minute abi: 0x%X, stroopwafel abi: 0x%X\n", STROOPWAFEL_ABI_VERSION, abi_version);
-            if (ancast_plugins_list) {
-                for (int k = 0; k < ancast_plugins_count; k++) { if (ancast_plugins_list[k] != NULL) free(ancast_plugins_list[k]); }
-                free(ancast_plugins_list); ancast_plugins_list = NULL;
-            }
-            return -2;
-        }
-    } else if (ancast_plugins_count > 0) {
-        printf("ancast: wafel_core.ipx not loaded, cannot check Stroopwafel ABI version.\n");
-    } else {
-        printf("ancast: No ELF plugins loaded (wafel_core.ipx not found and no other plugins available to load).\n");
+    u32 abi_version = ancast_get_abi_version(ancast_plugins_base);
+    if(abi_version != STROOPWAFEL_ABI_VERSION) {
+        printf("Incompatible stroopwafel ABI version. minute abi: 0x%X, stroopwafel abi: 0x%X\n", STROOPWAFEL_ABI_VERSION, abi_version);
+        return -2;
     }
 
     // Load DATA segments
