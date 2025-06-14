@@ -17,6 +17,7 @@
 #include "string.h"
 #include "utils.h"
 #include "memory.h"
+#include <stdio.h> // For sprintf
 
 #include "latte.h"
 
@@ -37,20 +38,7 @@ static int mlcdebug = 3;
 static struct sdhc_host mlc_host;
 static bool initialized = false;
 
-struct mlc_ctx {
-    sdmmc_chipset_handle_t handle;
-    int inserted;
-    int sdhc_blockmode;
-    int selected;
-    int new_card; // set to 1 everytime a new card is inserted
-
-    u32 num_sectors;
-    u16 rca;
-
-    bool is_sd;
-};
-
-static struct mlc_ctx card;
+static sdmmc_device_context_t card; // Changed type here
 
 void mlc_attach(sdmmc_chipset_handle_t handle)
 {
@@ -131,6 +119,7 @@ static void _discover_emmc(void){
 
     //resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
+    memcpy(card.cid, cmd.c_resp, 16); // Store CID
 
     /*printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
         resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
@@ -167,6 +156,7 @@ static void _discover_emmc(void){
         goto out_power;
     }
     resp32 = (u32 *)cmd.c_resp;
+    memcpy(card.csd, cmd.c_resp, 16); // Store CSD
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
     u8 *csd_bytes = (u8 *)cmd.c_resp;
@@ -433,6 +423,7 @@ void mlc_needs_discover(void)
     }
 
     u8 *resp = (u8 *)cmd.c_resp;
+    memcpy(card.cid, cmd.c_resp, 16); // Store CID
 
     printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
         resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
@@ -468,6 +459,7 @@ void mlc_needs_discover(void)
 
 
     u32 *resp32 = (u32 *)cmd.c_resp;
+    memcpy(card.csd, cmd.c_resp, 16); // Store CSD
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
     
     u16 ccc = SD_CSD_CCC(resp32);
@@ -1111,4 +1103,12 @@ void mlc_exit(void)
 #endif
     sdhc_shutdown(&mlc_host);
     initialized = false;
+}
+
+// Unified accessor function implementation
+const sdmmc_device_context_t* mlc_get_card_info(void) {
+    // Basic check: if card not inserted or discovered, might return invalid data
+    // but mlc_print_info_menu will call mlc_init first.
+    // If card.inserted is false, fields in card_info might be zero/default.
+    return &card; // Return direct pointer to the static card context
 }

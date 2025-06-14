@@ -1217,7 +1217,6 @@ ppc_exit:
     console_power_to_exit();
 }
 
-
 void main_quickboot_patch_slc(void)
 {
     gfx_clear(GFX_ALL, BLACK);

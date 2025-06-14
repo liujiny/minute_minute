@@ -38,19 +38,10 @@ static int sdcarddebug = 2;
 
 static struct sdhc_host sdcard_host;
 
-struct sdcard_ctx {
-    sdmmc_chipset_handle_t handle;
-    int inserted;
-    int sdhc_blockmode;
-    int selected;
-    int new_card; // set to 1 everytime a new card is inserted
-    int multiple_fallback;
+// struct sdcard_ctx removed, using sdmmc_device_context_t directly
 
-    u32 num_sectors;
-    u16 rca;
-};
-
-static struct sdcard_ctx card;
+static sdmmc_device_context_t card; // Changed type here
+static int sdcard_multiple_fallback = 0; // Moved from sdcard_ctx
 
 void sdcard_attach(sdmmc_chipset_handle_t handle)
 {
@@ -154,11 +145,11 @@ void sdcard_needs_discover(void)
         ocr |= SD_OCR_SDHC_CAP;
     DPRINTF(2, ("sdcard: SEND_IF_COND ocr: %x\n", ocr));
 
-    // TODO remove?
-    card.sdhc_blockmode = 1;
+    card.is_sd = true; // This is an SD card
+    card.sdhc_blockmode = 1; // This field is now part of sdmmc_device_context_t
     card.selected = 0;
     card.inserted = 1;
-    card.multiple_fallback = 0;
+    sdcard_multiple_fallback = 0; // Use the static variable
 
     int tries;
     for (tries = 100; tries > 0; tries--) {
@@ -218,6 +209,7 @@ void sdcard_needs_discover(void)
 
     resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
+    memcpy(card.cid, cmd.c_resp, 16); // Store CID
     printf("CID: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
     printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
         resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
@@ -254,6 +246,7 @@ void sdcard_needs_discover(void)
     resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
     memcpy(csd_bytes, resp, 16);
+    memcpy(card.csd, cmd.c_resp, 16); // Store CSD
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
     if (csd_bytes[13] == 0xe) { // sdhc
@@ -574,7 +567,7 @@ int sdcard_read(u32 blk_start, u32 blk_count, void *data)
 
 retry_single:
     // TODO: wtf is this bug
-    if ((!can_sdcard_dma_addr(data) || card.multiple_fallback) && blk_count > 1) { // 
+    if ((!can_sdcard_dma_addr(data) || sdcard_multiple_fallback) && blk_count > 1) { //
         int ret = 0;
         for (int i = 0; i < blk_count; i++)
         {
@@ -628,9 +621,9 @@ retry_single:
 
         if (cmd.c_error) {
             printf("sdcard: MMC_READ_BLOCK_%s failed with %d\n", blk_count > 1 ? "MULTIPLE" : "SINGLE", cmd.c_error);
-            if (blk_count > 1 && !card.multiple_fallback) {
+            if (blk_count > 1 && !sdcard_multiple_fallback) {
                 printf("sdcard: trying only single blocks?\n");
-                card.multiple_fallback = 1;
+                sdcard_multiple_fallback = 1;
                 goto retry_single; 
             }
             else if (blk_count <= 1 && !sdcard_host.no_dma) {
@@ -757,7 +750,7 @@ int sdcard_write(u32 blk_start, u32 blk_count, void *data)
 
 retry_single:
     // TODO: wtf is this bug
-    if ((!can_sdcard_dma_addr(data) || card.multiple_fallback) && blk_count > 1) { // !can_sdcard_dma_addr(data) && 
+    if ((!can_sdcard_dma_addr(data) || sdcard_multiple_fallback) && blk_count > 1) { // !can_sdcard_dma_addr(data) &&
         int ret = 0;
         for (int i = 0; i < blk_count; i++)
         {
@@ -808,9 +801,9 @@ retry_single:
 
         if (cmd.c_error) {
             printf("sdcard: MMC_WRITE_BLOCK_%s failed with %d\n", blk_count > 1 ? "MULTIPLE" : "SINGLE", cmd.c_error);
-            if (blk_count > 1 && !card.multiple_fallback) {
+        if (blk_count > 1 && !sdcard_multiple_fallback) {
                 printf("sdcard: trying only single blocks?\n");
-                card.multiple_fallback = 1;
+            sdcard_multiple_fallback = 1;
                 goto retry_single; 
             }
             else if (blk_count <= 1 && !sdcard_host.no_dma) {
@@ -858,21 +851,11 @@ int sdcard_wait_data(void)
     return 0;
 }
 
-int sdcard_get_sectors(void)
-{
-    if (card.inserted == 0) {
-        printf("sdcard: READ: no card inserted.\n");
-        return -1;
-    }
-
-    if (card.new_card == 1) {
-        printf("sdcard: new card inserted but not acknowledged yet.\n");
-        return -1;
-    }
-
-//  sdhc_error(sdhci->reg_base, "num sectors = %u", sdhci->num_sectors);
-
-    return card.num_sectors;
+// Unified accessor function implementation
+const sdmmc_device_context_t* sdcard_get_card_info(void) { // Renamed return type
+    // Assumes sdcard_init has been called, which calls sdcard_needs_discover.
+    // card.is_sd is set to true during sdcard_needs_discover.
+    return &card; // Return direct pointer to the static card context
 }
 
 void sdcard_irq(void)

@@ -58,6 +58,9 @@ void dump_set_sata_type_6(void);
 void dump_set_sata_type_7(void);
 void dump_set_sata_type_8(void);
 
+// Forward declaration for the menu callback
+void dump_print_mlc_info_menu(void);
+
 static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(NAND_DATA_ALIGN);
 static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(NAND_DATA_ALIGN);
 
@@ -95,9 +98,10 @@ menu menu_dump = {
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Print SLC superblocks", &dump_print_slc_superblocks},
+            {"Print MLC Info", &dump_print_mlc_info_menu},
             {"Return to Main Menu", &menu_close},
     },
-    28, // number of options
+    29, // number of options
     0,
     0
 };
@@ -151,15 +155,157 @@ const char* _dump_sata_type_str(int type)
     }
 }
 
+static const char* getSDManufacturerName(u16 mid) {
+    switch (mid) {
+        case 0x01: return "Panasonic";
+        case 0x02: return "Toshiba/Kingston/Viking";
+        case 0x03: return "SanDisk";
+        case 0x08: return "Silicon Power";
+        case 0x18: return "Infineon";
+        case 0x1b: return "Transcend/Samsung";
+        case 0x1c: return "Transcend";
+        case 0x1d: return "Corsair/AData";
+        case 0x1e: return "Transcend";
+        case 0x1f: return "Kingston";
+        case 0x27: return "Delkin/Phison";
+        case 0x28: return "Lexar";
+        case 0x30: return "SanDisk";
+        case 0x31: return "Silicon Power";
+        case 0x33: return "STMicroelectronics";
+        case 0x41: return "Kingston";
+        case 0x5d: return "Swissbit";
+        case 0x6f: return "STMicroelectronics";
+        case 0x74: return "Transcend";
+        case 0x76: return "Patriot";
+        case 0x82: return "Gobe/Sony";
+        case 0x89: return "Unknown";
+        case 0x9e: return "PNY";
+        default:   return "Unknown";
+    }
+}
+
+static const char* getEMMCManufacturerName(u16 mid) {
+    switch (mid) {
+        case 0x11: return "Toshiba";
+        case 0x15: return "Samsung";
+        case 0x90: return "Hynix";
+        default:   return "Unknown";
+    }
+}
+
+static void print_sdmmc_card_info(const sdmmc_device_context_t* card_info, const char* device_name) {
+    if (!card_info) {
+        printf("%s: Error retrieving card data.\n", device_name);
+        return;
+    }
+
+    printf("%s Information\n\n", device_name);
+    printf("Type: %s\n", card_info->is_sd ? "SD Card" : "eMMC");
+
+    // CID Parsing (using specified, potentially non-standard, byte indices)
+    // MID: card_info->cid[14]
+    u8 mid = card_info->cid[14];
+    const char *manufacturer_name = card_info->is_sd?getSDManufacturerName(mid):getEMMCManufacturerName(mid);
+    printf("Manufacturer ID (MID): 0x%02X (%s)\n", mid, manufacturer_name);
+
+    // OID: (card_info->cid[13] << 8) | card_info->cid[12]
+    u16 oid = (card_info->cid[13] << 8) | card_info->cid[12];
+    // Printing OID as hex and attempting char conversion.
+    // ASCII check for individual bytes:
+    char oid_char1 = (card_info->cid[13] >= 32 && card_info->cid[13] <= 126) ? card_info->cid[13] : '.';
+    char oid_char2 = (card_info->cid[12] >= 32 && card_info->cid[12] <= 126) ? card_info->cid[12] : '.';
+    printf("OEM/Application ID (OID): 0x%04X (%c%c)\n", oid, oid_char1, oid_char2);
+
+    // PNM: card_info->cid[11] down to card_info->cid[6] (6 chars)
+    char pnm_str[7];
+    pnm_str[0] = card_info->cid[11];
+    pnm_str[1] = card_info->cid[10];
+    pnm_str[2] = card_info->cid[9];
+    pnm_str[3] = card_info->cid[8];
+    pnm_str[4] = card_info->cid[7];
+    pnm_str[5] = card_info->cid[6];
+    pnm_str[6] = '\0';
+    for(int i=0; i<6; i++) { // Filter non-printable characters
+        if (pnm_str[i] < 32 || pnm_str[i] > 126) pnm_str[i] = '.';
+    }
+    printf("Product Name (PNM): %s\n", pnm_str);
+
+    // PRV: card_info->cid[3] (upper nibble major, lower nibble minor)
+    u8 prv_byte = card_info->cid[3];
+    int prv_major = (prv_byte >> 4) & 0x0F;
+    int prv_minor = prv_byte & 0x0F;
+    printf("Product Revision (PRV): %d.%d\n", prv_major, prv_minor);
+
+    // PSN: print raw hex of card_info->cid[2], card_info->cid[1], card_info->cid[0], card_info->cid[15]
+    printf("Product Serial Number (PSN) raw bytes [3:6]: 0x%02X%02X%02X%02X\n",
+           card_info->cid[3], card_info->cid[4], card_info->cid[5], card_info->cid[6]);
+
+    if(!card_info->is_sd){
+        u8 mdt_month = (card_info->cid[14] >> 4) & 0xf;
+        u8 mdt_year_offset = card_info->cid[14] & 0xf;
+        u32 mdt_year = 1997 + mdt_year_offset;
+        if(mdt_year < 2005)
+            mdt_year += 0x10;
+        printf("Manufacturing Date (MDT from cid[14]): %02d/%04d (Year offset: %d)\n", mdt_month, mdt_year, mdt_year_offset);
+        if (mdt_month == 0 || mdt_month > 12) {
+            printf(" (Warning: Invalid MDT month from cid[14])\n");
+        }
+    }
+
+    // Card Size
+    if (card_info->num_sectors > 0) {
+        unsigned long long card_size_bytes = (unsigned long long)card_info->num_sectors * 512;
+        unsigned long long card_size_mb = card_size_bytes / (1024 * 1024);
+        // unsigned long long card_size_gb = card_size_bytes / (1024 * 1024 * 1024); // GB can be added if needed
+        printf("Size: %llu MB (%llu sectors)\n", card_size_mb, (unsigned long long)card_info->num_sectors);
+    } else {
+        printf("Size: Unknown (0 sectors reported)\n");
+    }
+
+    printf("Raw CID (16 bytes): ");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", card_info->cid[i]);
+    }
+    printf("\n");
+
+    printf("Raw CSD (16 bytes): ");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", card_info->csd[i]);
+    }
+    printf("\n");
+}
+
+// This function is called by an entry in menu_dump
+void dump_print_mlc_info_menu(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Attempting to retrieve MLC Information...\n");
+
+    if (mlc_init() != 0) {
+        printf("MLC Init Error\n");
+        printf("Could not initialize the MLC device.\n");
+        console_power_to_exit();
+        return;
+    }
+
+    const sdmmc_device_context_t* info = mlc_get_card_info();
+    // print_sdmmc_card_info handles NULL info check internally
+    print_sdmmc_card_info(info, "MLC");
+
+    console_power_to_exit();
+}
+
 void dump_menu_show()
 {
     menu_init(&menu_dump);
 }
 
 static u32 dump_get_iosu_mlc_sectors(void){
-    u32 sectors = mlc_get_sectors();
-    if(sectors == -1)
-        return -1;
+    const sdmmc_device_context_t* mlc_info = mlc_get_card_info();
+    if (!mlc_info) return (u32)-1; // Error if no info
+    u32 sectors = mlc_info->num_sectors;
+    // if(sectors == -1) // num_sectors is u32, so -1 check is not typical here unless an error val
+    //     return -1;
     if (sectors < 0xe60000) {
         // smaller than 8GB
         sectors -= 1;
@@ -203,7 +349,7 @@ void dump_factory_log()
     u8* sector_buf = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
 
     // calculate number of extra sectors
-    u32 total_sec = mlc_get_sectors();
+    u32 total_sec = mlc_get_card_info()->num_sectors;
 
     u32 block_size_bytes = SDHC_BLOCK_COUNT_MAX * 0x200;
     for(u32 sector = mlc_sectors; sector < total_sec; sector += SDHC_BLOCK_COUNT_MAX)
@@ -1638,7 +1784,8 @@ int _dump_partition_rednand(void)
     const u32 slc_sectors = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
     const u32 data_sectors = 0x100000 / SDMMC_DEFAULT_BLOCKLEN;
 
-    u32 end = (u32)sdcard_get_sectors() & 0xFFFF0000;
+    const u32 sdcard_num_sectors = sdcard_get_card_info()->num_sectors;
+    u32 end = (u32)sdcard_num_sectors & 0xFFFF0000;
     u32 slccmpt_base = end - slc_sectors;
     u32 slc_base = slccmpt_base - slc_sectors;
     u32 mlc_base = slc_base - mlc_sectors;
@@ -1661,7 +1808,7 @@ int _dump_partition_rednand(void)
     printf("Partitioning SD card...\n");
 
 
-    printf("Partition layout on SD with 0x%08lX (0x%08lX) sectors:\n", (u32)sdcard_get_sectors(), end);
+    printf("Partition layout on SD with 0x%08lX (0x%08lX) sectors:\n", sdcard_num_sectors, end);
 
     printf("FAT32:   0x%08lX->0x%08lX\n", fat_base, fat_base + fat_sectors);
     printf("MLC:     0x%08lX->0x%08lX\n", mlc_base, mlc_base + mlc_sectors);

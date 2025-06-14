@@ -15,6 +15,7 @@
 
 #include "bsdtypes.h"
 #include "sdmmc.h"
+#include <stdbool.h> // For bool type
 
 int mlc_init(void);
 void mlc_exit(void);
@@ -27,7 +28,7 @@ int mlc_wait_data(void);
 int mlc_select(void);
 int mlc_check_card(void);
 int mlc_ack_card(void);
-u32 mlc_get_sectors(void);
+// u32 mlc_get_sectors(void); // Replaced by mlc_get_card_info()
 
 int mlc_read(u32 blk_start, u32 blk_count, void *data);
 int mlc_write(u32 blk_start, u32 blk_count, void *data);
@@ -39,5 +40,8 @@ int mlc_start_write(u32 blk_start, u32 blk_count, void *data, struct sdmmc_comma
 int mlc_end_write(struct sdmmc_command* cmdbuf);
 
 int mlc_erase(void);
+
+// Unified accessor for MLC data
+const sdmmc_device_context_t* mlc_get_card_info(void);
 
 #endif
