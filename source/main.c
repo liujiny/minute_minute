@@ -1221,17 +1221,110 @@ ppc_exit:
 void mlc_print_info_menu(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    printf("MLC Info:\n"); // Added a title for clarity
-    char* mlc_info = mlc_get_info_str();
-    if (mlc_info) {
-        printf("%s\n", mlc_info);
-        // Assuming mlc_get_info_str() might allocate memory,
-        // but without its implementation, I cannot free it here.
-        // This might be a memory leak if not handled in mlc_get_info_str or by the caller.
-        // For now, proceeding as per subtask description.
-    } else {
-        printf("Failed to retrieve MLC information.\n");
+    printf("Attempting to retrieve MLC Information...\n");
+
+    if (mlc_init() != 0) {
+        printf("Error: MLC initialization failed.\n");
+        printf("MLC/eMMC might not be present or accessible.\n");
+        console_power_to_exit();
+        return;
     }
+
+    const u8* cid = mlc_get_cid();
+    const u8* csd = mlc_get_csd();
+    u32 num_sectors = mlc_get_num_sectors();
+    bool is_sd = mlc_get_is_sd();
+
+    // Check if CID data is likely valid (e.g., MID is not 0 or FF, though some valid MIDs can be FF)
+    // A more robust check might involve looking at multiple CID fields or a CRC if available.
+    // For now, if MID (cid[14] as per subtask spec) is 0 and num_sectors is 0, assume data is not valid.
+    if (cid[14] == 0 && num_sectors == 0 && cid[0] == 0 && cid[1] == 0 && cid[2] == 0) {
+        printf("Failed to retrieve valid MLC/eMMC data after initialization.\n");
+        printf("Card might be uninitialized or unreadable.\n");
+        console_power_to_exit();
+        return;
+    }
+
+    printf("\n--- MLC/eMMC Device Information ---\n");
+    printf("Device Type: %s\n", is_sd ? "SD Card" : "eMMC");
+
+    // CID Parsing (as per subtask specification)
+    // Note: The subtask's CID field mapping is non-standard and has conflicts.
+    // Implementing as specified. Standard eMMC CID bytes are typically [0] = LSB ... [15] = MSB.
+
+    // MID: cid[14]
+    u8 mid = cid[14];
+    printf("Manufacturer ID (MID): 0x%02X\n", mid);
+
+    // OID: (cid[13] << 8) | cid[12]
+    u16 oid = (cid[13] << 8) | cid[12];
+    printf("OEM/Application ID (OID): 0x%04X (%c%c)\n", oid, cid[13], cid[12]);
+
+    // PNM: cid[11] down to cid[6] (6 chars)
+    char pnm_str[7];
+    pnm_str[0] = cid[11];
+    pnm_str[1] = cid[10];
+    pnm_str[2] = cid[9];
+    pnm_str[3] = cid[8];
+    pnm_str[4] = cid[7];
+    pnm_str[5] = cid[6];
+    pnm_str[6] = '\0';
+    // Filter non-printable characters for PNM
+    for(int i=0; i<6; i++) {
+        if (pnm_str[i] < 32 || pnm_str[i] > 126) pnm_str[i] = '.';
+    }
+    printf("Product Name (PNM): %s\n", pnm_str);
+
+    // PRV: cid[3] (upper nibble major, lower nibble minor)
+    u8 prv_byte = cid[3];
+    int prv_major = (prv_byte >> 4) & 0x0F;
+    int prv_minor = prv_byte & 0x0F;
+    printf("Product Revision (PRV): %d.%d\n", prv_major, prv_minor);
+
+    // PSN: print raw hex of cid[2], cid[1], cid[0], cid[15]
+    printf("Product Serial Number (PSN) bytes [2,1,0,15]: 0x%02X%02X%02X%02X\n", cid[2], cid[1], cid[0], cid[15]);
+
+    // MDT: cid[15] (lower nibble month, upper nibble year offset from 2000)
+    // This conflicts with cid[15] being part of PSN raw print.
+    u8 mdt_byte = cid[15];
+    int mdt_month = mdt_byte & 0x0F;
+    int mdt_year_offset = (mdt_byte >> 4) & 0x0F;
+    int mdt_year = mdt_year_offset + 2000; // Subtask specified offset from 2000
+    printf("Manufacturing Date (MDT from cid[15]): %02d/%04d (Year offset: %d)\n", mdt_month, mdt_year, mdt_year_offset);
+    if (mdt_month == 0 || mdt_month > 12) {
+         printf(" (Warning: Invalid MDT month from cid[15])\n");
+    }
+
+
+    // Card Size
+    if (num_sectors > 0) {
+        unsigned long long card_size_bytes = (unsigned long long)num_sectors * 512;
+        unsigned long long card_size_mb = card_size_bytes / (1024 * 1024);
+        unsigned long long card_size_gb = card_size_bytes / (1024 * 1024 * 1024);
+        if (card_size_gb > 0) {
+            printf("Size: %llu GB (%llu MB / %llu sectors)\n", card_size_gb, card_size_mb, (unsigned long long)num_sectors);
+        } else {
+            printf("Size: %llu MB (%llu sectors)\n", card_size_mb, (unsigned long long)num_sectors);
+        }
+    } else {
+        printf("Size: Unknown (0 sectors reported)\n");
+    }
+
+    printf("\nRaw CID (16 bytes, as read):\n");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", cid[i]);
+        if ((i + 1) % 8 == 0 && i < 15) printf(" "); // space midway
+    }
+    printf("\n");
+
+    printf("\nRaw CSD (16 bytes, as read):\n");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", csd[i]);
+        if ((i + 1) % 8 == 0 && i < 15) printf(" ");
+    }
+    printf("\n");
+
+    printf("\n--- End of Information ---\n");
     console_power_to_exit();
 }
 

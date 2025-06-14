@@ -15,6 +15,7 @@
 
 #include "bsdtypes.h"
 #include "sdmmc.h"
+#include <stdbool.h> // For bool type
 
 int mlc_init(void);
 void mlc_exit(void);
@@ -40,6 +41,10 @@ int mlc_end_write(struct sdmmc_command* cmdbuf);
 
 int mlc_erase(void);
 
-char* mlc_get_info_str(void);
+// Accessor functions for MLC data
+const u8* mlc_get_cid(void);
+const u8* mlc_get_csd(void);
+u32 mlc_get_num_sectors(void);
+bool mlc_get_is_sd(void);
 
 #endif

@@ -1120,84 +1120,21 @@ void mlc_exit(void)
     initialized = false;
 }
 
-// Static buffer for mlc_get_info_str
-static char mlc_info_string[1024];
+// Accessor functions implementation
+const u8* mlc_get_cid(void) {
+    // Assuming mlc_init() is called elsewhere before this, as per subtask instructions.
+    // If not, a check for `initialized` and a call to `mlc_init()` might be needed here.
+    return card.cid;
+}
 
-char* mlc_get_info_str(void) {
-    // Initialize MLC if not already done
-    if (!initialized) {
-        if (mlc_init() != 0) {
-            snprintf(mlc_info_string, sizeof(mlc_info_string), "Error: MLC not initialized or not found.");
-            return mlc_info_string;
-        }
-    }
+const u8* mlc_get_csd(void) {
+    return card.csd;
+}
 
-    // Ensure card discovery has happened (mlc_init calls it)
-    // If card.cid[15] (MID) is 0, discovery might have failed or no card / no info
-    // A simple check, might need more robust error handling from mlc_init/mlc_needs_discover
-    if (card.cid[15] == 0 && card.cid[14] == 0) { // Check a couple of bytes, MID can be 0 for unprogrammed cards
-         // mlc_needs_discover might be better here if init is too broad
-        mlc_needs_discover(); // Attempt discovery again if info seems missing
-        if (card.cid[15] == 0 && card.cid[14] == 0 && card.num_sectors == 0) {
-             snprintf(mlc_info_string, sizeof(mlc_info_string), "Failed to retrieve MLC information after discovery attempt.");
-             return mlc_info_string;
-        }
-    }
+u32 mlc_get_num_sectors(void) {
+    return card.num_sectors;
+}
 
-    // Parse CID data (assuming card.cid is populated with CID register bytes 0-15)
-    // Standard eMMC CID structure:
-    // card.cid[15] (Byte 15) = Manufacturer ID (MID)
-    // card.cid[14] (Byte 14) = OEM/Application ID (OID)
-    // card.cid[13:8] (Bytes 13-8) = Product Name (PNM) - 6 ASCII characters
-    // card.cid[7]  (Byte 7) = Product Revision (PRV) - BCD (e.g., hi_nibble.lo_nibble)
-    // card.cid[6:3] (Bytes 6-3) = Product Serial Number (PSN) - 32-bit unsigned integer
-    // card.cid[2]  (Byte 2) = Manufacturing Date (MDT) - Year (hi_nibble, offset from 1997), Month (lo_nibble)
-
-    unsigned char mid = card.cid[15];
-    unsigned char oid = card.cid[14]; // Often an ASCII char or part of a 2-char OID with CSD's CCCD
-    char pnm[7];
-    memcpy(pnm, &card.cid[8], 6);
-    pnm[6] = '\0';
-
-    unsigned char prv_byte = card.cid[7];
-    int prv_major = (prv_byte >> 4) & 0x0F;
-    int prv_minor = prv_byte & 0x0F;
-
-    unsigned int psn = (unsigned int)card.cid[6] << 24 |
-                       (unsigned int)card.cid[5] << 16 |
-                       (unsigned int)card.cid[4] << 8  |
-                       (unsigned int)card.cid[3];
-
-    unsigned char mdt_byte = card.cid[2];
-    int mdt_month = mdt_byte & 0x0F;
-    int mdt_year = ((mdt_byte >> 4) & 0x0F) + 1997; // Year is offset from 1997
-
-    // Card Size from num_sectors (512 bytes per sector)
-    unsigned long long card_size_bytes = (unsigned long long)card.num_sectors * 512;
-    unsigned int card_size_mb = (unsigned int)(card_size_bytes / (1024 * 1024));
-    unsigned int card_size_gb = (unsigned int)(card_size_bytes / (1024 * 1024 * 1024));
-
-
-    // Format the string
-    // Note: Using snprintf for safety
-    int len = 0;
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "MLC Information:\n");
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Manufacturer ID (MID): 0x%02X\n", mid);
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  OEM/Application ID (OID): 0x%02X\n", oid);
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Product Name (PNM): %s\n", pnm);
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Product Revision (PRV): %d.%d\n", prv_major, prv_minor);
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Product Serial Number (PSN): 0x%08X (%u)\n", psn, psn);
-    len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Manufacturing Date (MDT): %02d/%04d\n", mdt_month, mdt_year);
-
-    if (card_size_gb > 0) {
-        len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Card Size: %u GB (%llu bytes)\n", card_size_gb, card_size_bytes);
-    } else {
-        len += snprintf(mlc_info_string + len, sizeof(mlc_info_string) - len, "  Card Size: %u MB (%llu bytes)\n", card_size_mb, card_size_bytes);
-    }
-    // Ensure null termination if somehow buffer is full, though snprintf handles this for the current segment.
-    if (len >= sizeof(mlc_info_string)) {
-        mlc_info_string[sizeof(mlc_info_string) - 1] = '\0';
-    }
-
-    return mlc_info_string;
+bool mlc_get_is_sd(void) {
+    return card.is_sd;
 }
