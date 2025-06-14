@@ -38,8 +38,6 @@ static int mlcdebug = 3;
 static struct sdhc_host mlc_host;
 static bool initialized = false;
 
-// struct mlc_ctx removed, using sdmmc_device_context_t directly
-
 static sdmmc_device_context_t card; // Changed type here
 
 void mlc_attach(sdmmc_chipset_handle_t handle)
@@ -968,24 +966,6 @@ u32 mlc_get_sectors(void)
 
     return card.num_sectors;
 }
-
-// This function is no longer needed as mlc_get_card_info().num_sectors is used
-// u32 mlc_get_sectors(void)
-// {
-//     if (card.inserted == 0) {
-//         printf("mlc: READ: no card inserted.\n");
-//         return -1;
-//     }
-//
-//     if (card.new_card == 1) {
-//         printf("mlc: new card inserted but not acknowledged yet.\n");
-//         return -1;
-//     }
-//
-// //  sdhc_error(sdhci->reg_base, "num sectors = %u", sdhci->num_sectors);
-//
-//     return card.card_info.num_sectors;
-// }
 
 void mlc_irq(void)
 {

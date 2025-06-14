@@ -59,7 +59,7 @@ void dump_set_sata_type_7(void);
 void dump_set_sata_type_8(void);
 
 // Forward declaration for the menu callback
-void mlc_print_info_menu(void);
+void dump_print_mlc_info_menu(void);
 
 static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(NAND_DATA_ALIGN);
 static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(NAND_DATA_ALIGN);
@@ -98,7 +98,7 @@ menu menu_dump = {
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Print SLC superblocks", &dump_print_slc_superblocks},
-            {"Print MLC Info", &mlc_print_info_menu},
+            {"Print MLC Info", &dump_print_mlc_info_menu},
             {"Return to Main Menu", &menu_close},
     },
     29, // number of options
@@ -241,7 +241,7 @@ static void print_sdmmc_card_info(const sdmmc_device_context_t* card_info, const
 }
 
 // This function is called by an entry in menu_dump
-void mlc_print_info_menu(void)
+void dump_print_mlc_info_menu(void)
 {
     gfx_clear(GFX_ALL, BLACK);
     printf("Attempting to retrieve MLC Information...\n");

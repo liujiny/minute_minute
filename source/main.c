@@ -590,7 +590,6 @@ boot:
 
 void main_swapboot_patch(void);
 void main_quickboot_isfshax(void);
-// void mlc_print_info_menu(void); // Prototype removed
 
 #ifndef FASTBOOT
 menu menu_main = {
@@ -1217,8 +1216,6 @@ void main_boot_ppc(void)
 ppc_exit:
     console_power_to_exit();
 }
-
-// mlc_print_info_menu() implementation entirely removed from main.c
 
 void main_quickboot_patch_slc(void)
 {
