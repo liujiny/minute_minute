@@ -692,11 +692,6 @@ u32 ancast_plugins_search(const char* plugins_fpath)
 
     // Sort the files array
     qsort(ancast_plugins_list, ancast_plugins_count, sizeof(char*), ancast_plugin_compare);
-
-    // Print the sorted file names
-    for (int i = 0; i < ancast_plugins_count; i++) {
-        printf("%s\n", ancast_plugins_list[i]);
-    }
 }
 
 void ancast_plugin_set_next(uintptr_t base, uintptr_t next)
