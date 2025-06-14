@@ -795,20 +795,16 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
     u8* plugin_base = (u8*)base; // TODO dynamic
     snprintf(tmp, sizeof(tmp)-1, "%s/%s", plugins_fpath, fn_plugin);
 
-    // Check if the file exists
     if (access(tmp, F_OK) == -1) {
-        // File does not exist
         if (!strcmp(fn_plugin, wafel_core_fn)) {
-            // If it's wafel_core.fn, skip error and return base
-            return base;
+            return base; // Silently skip if wafel_core.ipx is missing
         }
-        // For other files, proceed to fopen to print the standard error
+        // For other missing files, fopen below will handle the error.
     }
 
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
     {
-        // If fopen fails (either file didn't exist and wasn't wafel_core.fn, or other fopen error)
         printf("ancast: failed to open plugin `%s`!\n", tmp);
         return base;
     }
