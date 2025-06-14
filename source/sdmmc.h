@@ -148,13 +148,22 @@ struct sdmmc_function {
     sdmmc_response raw_cid;     /* temp. storage for decoding */
 };
 
-// Structure to hold consolidated card information
+// Structure to hold consolidated card context/information
 typedef struct {
+    // Fields from original sdmmc_card_info_t
     u8 cid[16];
     u8 csd[16];
     u32 num_sectors;
     bool is_sd; // True if SD card, false if eMMC
-} sdmmc_card_info_t;
+
+    // Fields from mlc_ctx/sdcard_ctx
+    sdmmc_chipset_handle_t handle; // Pointer to host controller
+    int inserted;                  // Card is inserted
+    int sdhc_blockmode;            // Card is high capacity / uses block addressing
+    int selected;                  // Card is selected
+    int new_card;                  // Flag indicating a new card has been inserted
+    u16 rca;                       // Relative Card Address
+} sdmmc_device_context_t;
 
 #define SDMMC_LOCK(sc)   lockmgr(&(sc)->sc_lock, LK_EXCLUSIVE, NULL)
 #define SDMMC_UNLOCK(sc) lockmgr(&(sc)->sc_lock, LK_RELEASE, NULL)

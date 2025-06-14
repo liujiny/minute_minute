@@ -42,6 +42,6 @@ int mlc_end_write(struct sdmmc_command* cmdbuf);
 int mlc_erase(void);
 
 // Unified accessor for MLC data
-const sdmmc_card_info_t* mlc_get_card_info(void);
+const sdmmc_device_context_t* mlc_get_card_info(void);
 
 #endif

@@ -38,22 +38,9 @@ static int mlcdebug = 3;
 static struct sdhc_host mlc_host;
 static bool initialized = false;
 
-struct mlc_ctx {
-    sdmmc_chipset_handle_t handle;
-    int inserted;
-    int sdhc_blockmode;
-    int selected;
-    int new_card; // set to 1 everytime a new card is inserted
+// struct mlc_ctx removed, using sdmmc_device_context_t directly
 
-    // u32 num_sectors; // Replaced by card_info.num_sectors
-    u16 rca;
-    // bool is_sd; // Replaced by card_info.is_sd
-    // u8 cid[16]; // Replaced by card_info.cid
-    // u8 csd[16]; // Replaced by card_info.csd
-    sdmmc_card_info_t card_info; // Consolidated card information
-};
-
-static struct mlc_ctx card;
+static sdmmc_device_context_t card; // Changed type here
 
 void mlc_attach(sdmmc_chipset_handle_t handle)
 {
@@ -134,7 +121,7 @@ static void _discover_emmc(void){
 
     //resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
-    memcpy(card.card_info.cid, cmd.c_resp, 16); // Store CID
+    memcpy(card.cid, cmd.c_resp, 16); // Store CID
 
     /*printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
         resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
@@ -171,7 +158,7 @@ static void _discover_emmc(void){
         goto out_power;
     }
     resp32 = (u32 *)cmd.c_resp;
-    memcpy(card.card_info.csd, cmd.c_resp, 16); // Store CSD
+    memcpy(card.csd, cmd.c_resp, 16); // Store CSD
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
     u8 *csd_bytes = (u8 *)cmd.c_resp;
@@ -186,7 +173,7 @@ static void _discover_emmc(void){
     c_size_mult |= csd_bytes[4] >> 7;
     printf("taac=%u nsac=%u read_bl_len=%u c_size=%u c_size_mult=%u card size=%u bytes\n",
         taac, nsac, read_bl_len, c_size, c_size_mult, (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len));
-    card.card_info.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
+    card.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
 
 
     DPRINTF(1, ("mlc: enabling clock\n"));
@@ -261,8 +248,8 @@ static void _discover_emmc(void){
 
     u8 card_type = ext_csd[0xC4];
 
-    card.card_info.num_sectors = (u32)ext_csd[0xD4] | ext_csd[0xD5] << 8 | ext_csd[0xD6] << 16 | ext_csd[0xD7] << 24;
-    printf("mlc: card_type=0x%x sec_count=0x%lx\n", card_type, card.card_info.num_sectors);
+    card.num_sectors = (u32)ext_csd[0xD4] | ext_csd[0xD5] << 8 | ext_csd[0xD6] << 16 | ext_csd[0xD7] << 24;
+    printf("mlc: card_type=0x%x sec_count=0x%lx\n", card_type, card.num_sectors);
 
     if(!(card_type & 0xE)){
         printf("mlc: no SDR25 support\n");
@@ -375,7 +362,7 @@ void mlc_needs_discover(void)
         ocr |= SD_OCR_SDHC_CAP;
     DPRINTF(2, ("sdcard: SEND_IF_COND ocr: %x\n", ocr));
 
-    card.card_info.is_sd = true;
+    card.is_sd = true;
 
     for (int tries = 0; tries < 100; tries++) {
         udelay(100000);
@@ -389,7 +376,7 @@ void mlc_needs_discover(void)
         if (cmd.c_error) {
             if(tries == 0){
                 // switch from SD mode to MMC mode
-                card.card_info.is_sd = false;
+                card.is_sd = false;
                 printf("mlc: is not an sd, so it is eMMC\n");
                 return _discover_emmc();
             }
@@ -438,7 +425,7 @@ void mlc_needs_discover(void)
     }
 
     u8 *resp = (u8 *)cmd.c_resp;
-    memcpy(card.card_info.cid, cmd.c_resp, 16); // Store CID
+    memcpy(card.cid, cmd.c_resp, 16); // Store CID
 
     printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
         resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
@@ -474,7 +461,7 @@ void mlc_needs_discover(void)
 
 
     u32 *resp32 = (u32 *)cmd.c_resp;
-    memcpy(card.card_info.csd, cmd.c_resp, 16); // Store CSD
+    memcpy(card.csd, cmd.c_resp, 16); // Store CSD
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
     
     u16 ccc = SD_CSD_CCC(resp32);
@@ -484,7 +471,7 @@ void mlc_needs_discover(void)
     if (csd_bytes[13] == 0xe) { // sdhc
         unsigned int c_size = csd_bytes[7] << 16 | csd_bytes[6] << 8 | csd_bytes[5];
         printf("mlc: sdhc mode, c_size=%u, card size = %uk\n", c_size, (c_size + 1)* 512);
-        card.card_info.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
+        card.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
     }
 
     DPRINTF(1, ("mlc: enabling clock\n"));
@@ -982,6 +969,24 @@ u32 mlc_get_sectors(void)
     return card.num_sectors;
 }
 
+// This function is no longer needed as mlc_get_card_info().num_sectors is used
+// u32 mlc_get_sectors(void)
+// {
+//     if (card.inserted == 0) {
+//         printf("mlc: READ: no card inserted.\n");
+//         return -1;
+//     }
+//
+//     if (card.new_card == 1) {
+//         printf("mlc: new card inserted but not acknowledged yet.\n");
+//         return -1;
+//     }
+//
+// //  sdhc_error(sdhci->reg_base, "num sectors = %u", sdhci->num_sectors);
+//
+//     return card.card_info.num_sectors;
+// }
+
 void mlc_irq(void)
 {
     sdhc_intr(&mlc_host);
@@ -994,7 +999,7 @@ static int mlc_do_erase(u32 start, u32 end){
 #else
     struct sdmmc_command cmd = { 0 };
 
-    cmd.c_opcode = card.card_info.is_sd ? SD_ERASE_WR_BLK_START:MMC_ERASE_GROUP_START;
+    cmd.c_opcode = card.is_sd ? SD_ERASE_WR_BLK_START:MMC_ERASE_GROUP_START;
     cmd.c_arg = start;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
@@ -1003,7 +1008,7 @@ static int mlc_do_erase(u32 start, u32 end){
         return -1;
     }
 
-    cmd.c_opcode = card.card_info.is_sd ? SD_ERASE_WR_BLK_END : MMC_ERASE_GROUP_END;
+    cmd.c_opcode = card.is_sd ? SD_ERASE_WR_BLK_END : MMC_ERASE_GROUP_END;
     cmd.c_arg = end;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
@@ -1125,5 +1130,5 @@ const sdmmc_card_info_t* mlc_get_card_info(void) {
     // Basic check: if card not inserted or discovered, might return invalid data
     // but mlc_print_info_menu will call mlc_init first.
     // If card.inserted is false, fields in card_info might be zero/default.
-    return &card.card_info;
+    return &card; // Return direct pointer to the static card context
 }
