@@ -22,6 +22,7 @@
 #include <elf.h>
 #include <stddef.h>
 #include <dirent.h>
+#include <unistd.h>
 
 #include "sha.h"
 #include "crypto.h"
@@ -793,6 +794,13 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
     char tmp[256];
     u8* plugin_base = (u8*)base; // TODO dynamic
     snprintf(tmp, sizeof(tmp)-1, "%s/%s", plugins_fpath, fn_plugin);
+
+    if (access(tmp, F_OK) == -1) {
+        if (!strcmp(fn_plugin, wafel_core_fn)) {
+            return base; // Silently skip if wafel_core.ipx is missing
+        }
+        // For other missing files, fopen below will handle the error.
+    }
 
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
