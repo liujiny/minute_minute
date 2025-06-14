@@ -40,4 +40,6 @@ int mlc_end_write(struct sdmmc_command* cmdbuf);
 
 int mlc_erase(void);
 
+char* mlc_get_info_str(void);
+
 #endif

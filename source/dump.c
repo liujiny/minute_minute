@@ -95,9 +95,10 @@ menu menu_dump = {
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Print SLC superblocks", &dump_print_slc_superblocks},
+            {"Print MLC Info", &mlc_print_info_menu},
             {"Return to Main Menu", &menu_close},
     },
-    28, // number of options
+    29, // number of options
     0,
     0
 };

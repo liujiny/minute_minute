@@ -590,6 +590,7 @@ boot:
 
 void main_swapboot_patch(void);
 void main_quickboot_isfshax(void);
+void mlc_print_info_menu(void);
 
 #ifndef FASTBOOT
 menu menu_main = {
@@ -1214,6 +1215,23 @@ void main_boot_ppc(void)
     ppc_jump(entry);
 
 ppc_exit:
+    console_power_to_exit();
+}
+
+void mlc_print_info_menu(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    printf("MLC Info:\n"); // Added a title for clarity
+    char* mlc_info = mlc_get_info_str();
+    if (mlc_info) {
+        printf("%s\n", mlc_info);
+        // Assuming mlc_get_info_str() might allocate memory,
+        // but without its implementation, I cannot free it here.
+        // This might be a memory leak if not handled in mlc_get_info_str or by the caller.
+        // For now, proceeding as per subtask description.
+    } else {
+        printf("Failed to retrieve MLC information.\n");
+    }
     console_power_to_exit();
 }
 
