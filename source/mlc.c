@@ -1126,7 +1126,7 @@ void mlc_exit(void)
 }
 
 // Unified accessor function implementation
-const sdmmc_card_info_t* mlc_get_card_info(void) {
+const sdmmc_device_context_t* mlc_get_card_info(void) {
     // Basic check: if card not inserted or discovered, might return invalid data
     // but mlc_print_info_menu will call mlc_init first.
     // If card.inserted is false, fields in card_info might be zero/default.

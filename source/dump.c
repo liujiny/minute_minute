@@ -155,7 +155,7 @@ const char* _dump_sata_type_str(int type)
     }
 }
 
-static void print_sdmmc_card_info(const sdmmc_card_info_t* card_info, const char* device_name) {
+static void print_sdmmc_card_info(const sdmmc_device_context_t* card_info, const char* device_name) {
     if (!card_info) {
         printf("%s: Error retrieving card data.\n", device_name);
         return;
@@ -253,7 +253,7 @@ void mlc_print_info_menu(void)
         return;
     }
 
-    const sdmmc_card_info_t* info = mlc_get_card_info();
+    const sdmmc_device_context_t* info = mlc_get_card_info();
     // print_sdmmc_card_info handles NULL info check internally
     print_sdmmc_card_info(info, "MLC");
 
@@ -266,7 +266,7 @@ void dump_menu_show()
 }
 
 static u32 dump_get_iosu_mlc_sectors(void){
-    const sdmmc_card_info_t* mlc_info = mlc_get_card_info();
+    const sdmmc_device_context_t* mlc_info = mlc_get_card_info();
     if (!mlc_info) return (u32)-1; // Error if no info
     u32 sectors = mlc_info->num_sectors;
     // if(sectors == -1) // num_sectors is u32, so -1 check is not typical here unless an error val
@@ -314,7 +314,7 @@ void dump_factory_log()
     u8* sector_buf = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
 
     // calculate number of extra sectors
-    u32 total_sec = mlc_get_sectors();
+    u32 total_sec = mlc_get_card_info()->num_sectors;
 
     u32 block_size_bytes = SDHC_BLOCK_COUNT_MAX * 0x200;
     for(u32 sector = mlc_sectors; sector < total_sec; sector += SDHC_BLOCK_COUNT_MAX)
@@ -1749,7 +1749,8 @@ int _dump_partition_rednand(void)
     const u32 slc_sectors = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
     const u32 data_sectors = 0x100000 / SDMMC_DEFAULT_BLOCKLEN;
 
-    u32 end = (u32)sdcard_get_sectors() & 0xFFFF0000;
+    const u32 sdcard_num_sectors = sdcard_get_card_info()->num_sectors;
+    u32 end = (u32)sdcard_num_sectors & 0xFFFF0000;
     u32 slccmpt_base = end - slc_sectors;
     u32 slc_base = slccmpt_base - slc_sectors;
     u32 mlc_base = slc_base - mlc_sectors;
@@ -1772,7 +1773,7 @@ int _dump_partition_rednand(void)
     printf("Partitioning SD card...\n");
 
 
-    printf("Partition layout on SD with 0x%08lX (0x%08lX) sectors:\n", (u32)sdcard_get_sectors(), end);
+    printf("Partition layout on SD with 0x%08lX (0x%08lX) sectors:\n", sdcard_num_sectors, end);
 
     printf("FAT32:   0x%08lX->0x%08lX\n", fat_base, fat_base + fat_sectors);
     printf("MLC:     0x%08lX->0x%08lX\n", mlc_base, mlc_base + mlc_sectors);
