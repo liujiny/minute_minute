@@ -751,7 +751,9 @@ u32 ancast_plugin_check_size(const char* fn_plugin, const char* plugins_fpath)
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
     {
-        printf("ancast: failed to open plugin `%s` for pre-parsing!\n", tmp);
+        // Silently skip if wafel_core.ipx is missing
+        if(strcmp(fn_plugin, wafel_core_fn) || access(tmp, F_OK) == 0)
+            printf("ancast: failed to open plugin `%s` for pre-parsing!\n", tmp);
         return 0;
     }
     else {
@@ -790,17 +792,12 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
     u8* plugin_base = (u8*)base; // TODO dynamic
     snprintf(tmp, sizeof(tmp)-1, "%s/%s", plugins_fpath, fn_plugin);
 
-    if (access(tmp, F_OK) == -1) {
-        if (!strcmp(fn_plugin, wafel_core_fn)) {
-            return base; // Silently skip if wafel_core.ipx is missing
-        }
-        // For other missing files, fopen below will handle the error.
-    }
-
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
     {
-        printf("ancast: failed to open plugin `%s`!\n", tmp);
+        // Silently skip if wafel_core.ipx is missing
+        if(strcmp(fn_plugin, wafel_core_fn) || access(tmp, F_OK) == 0)
+            printf("ancast: failed to open plugin `%s`!\n", tmp);
         return base;
     }
     else {
@@ -924,7 +921,11 @@ int ancast_plugins_load(const char* plugins_fpath, bool rednand)
     {
         ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
-
+    if(ancast_plugins_base == ancast_plugin_next){
+        printf("ERROR: No plugins found in %s (check you select the right option)\n", plugins_fpath);
+        printf("At least the core plugin is required\n");
+        return -3;
+    }
     u32 abi_version = ancast_get_abi_version(ancast_plugins_base);
     if(abi_version != STROOPWAFEL_ABI_VERSION) {
         printf("Incompatible stroopwafel ABI version. minute abi: 0x%X, stroopwafel abi: 0x%X\n", STROOPWAFEL_ABI_VERSION, abi_version);
