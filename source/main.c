@@ -53,6 +53,7 @@
 #include "isfshax.h"
 #include "rednand.h"
 #include "isfshax_patch.h"
+#include "usb.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -492,7 +493,7 @@ u32 _main(void *base)
     }
 #endif // ISFSHAX_STAGE2
 
-    
+    usb_init(); // needed for SD clock
     boot.vector = load_fw_from_sd(!slc_mounted);
 
 #ifdef ISFSHAX_STAGE2
@@ -797,6 +798,8 @@ u32 _main(void *base)
     printf("crypto support initialized\n");
     latte_print_hardware_info();
 
+    printf("Initializing USB clock\n");
+    usb_init(); // needed for SD clock
     printf("Initializing SD card...\n");
 #ifdef MEASURE_TIME
     u32 sd_start = read32(LT_TIMER);
