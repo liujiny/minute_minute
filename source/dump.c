@@ -1319,21 +1319,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     switch(bank) {
         case NAND_BANK_SLC: name = "SLC";
         isfs_init(ISFSVOL_SLC);
-        if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
-            printf("SLC Restore not allowed!\nNeither ISFShax nor defuse is detected\nSLC restore could brick the consolse.\n");
-            return -5;
-        } 
-        if(!crypto_otp_is_de_Fused){
-            printf("Defuse not detected. boot1 and ISFShax superblocks will be protected during restore\nISFShax Superblocks: ");
-            ctx = isfs_get_volume(ISFSVOL_SLC);
-            for(int i = 0; i<ISFSHAX_REDUNDANCY; i++)
-                printf("%u ", ctx->isfshax_slots[i]);
-            printf("\n");
-            protect_isfshax = true;
-            boot1_page = (seeprom_decrypted.boot1_params.sector & 0xFFF) * 0x40;
-            boot1_copy_page = (seeprom_decrypted.boot1_copy_params.sector & 0xFFF) * 0x40;
-            printf("boot1 pages: 0x%lX and 0x%lX\n", boot1_page, boot1_copy_page);
-        }
+
         
         break;
         case NAND_BANK_SLCCMPT: name = "SLCCMPT"; break;
