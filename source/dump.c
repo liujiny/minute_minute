@@ -442,7 +442,7 @@ int mandatory_seeprom_otp_backups()
         fclose(f_eep);
     }
 
-    return ret;
+    return 1;
 }
 
 void dump_seeprom_otp(void)
