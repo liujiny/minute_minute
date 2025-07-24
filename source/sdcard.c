@@ -322,6 +322,10 @@ void sdcard_needs_discover(void)
 
     sdhc_bus_width(card.handle, 4);
 
+#ifdef MINUTE_BOOT1
+    return;
+#endif
+
     u16 ccc = SD_CSD_CCC(csd_bytes);
     printf("CCC (hex): %03X\n", ccc);
 
