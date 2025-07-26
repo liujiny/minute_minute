@@ -365,7 +365,7 @@ void sdcard_needs_discover(void)
     printf("Group 1 Selection: %02x\n", mode_status[16]);
 
     if(mode_status[16] != 1){
-        // Does not SD25 (52MHz), so leave 25MHz
+        // Does not support SD25 (~50MHz), so leave 25MHz
         printf("sdcard: doesn't support SDR25, staying at SDR12\n");
         return;
     }
