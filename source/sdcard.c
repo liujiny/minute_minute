@@ -394,12 +394,7 @@ void sdcard_needs_discover(void)
 
     udelay(100); //give card time to switch to Highspeed mode
 
-    printf("sdcard: enabling highspeed 52MHz clock (%02x)\n", csd_bytes[0xB]);
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
-        return;
-    }
-
-    printf("sdcard: could not enable highspeed clock for card, falling back to 48MHz highspeed?\n");
+    printf("sdcard: enabling highspeed 48MHz clock (%02x)\n", csd_bytes[0xB]);
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_48MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
     }
