@@ -810,12 +810,6 @@ u32 _main(void *base)
 #endif
     sdcard_init();
     printf("sdcard_init finished\n");
-
-    printf("Mounting SD card...\n");
-    res = ELM_Mount();
-    if(res) {
-        printf("Error while mounting SD card (%d).\n", res);
-    }
 #ifdef MEASURE_TIME
     sd_end = read32(LT_TIMER);
 #endif
