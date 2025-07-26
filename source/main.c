@@ -820,6 +820,15 @@ u32 _main(void *base)
     printf("sdcard_init finished\n");
 #ifdef MEASURE_TIME
     sd_end = read32(LT_TIMER);
+    u32 ini_start = read32(LT_TIMER);
+#endif
+#ifndef FASTBOOT
+    minini_init();
+    if(autoboot_timeout_s)
+        enable_display();
+#endif
+#ifdef MEASURE_TIME
+    u32 ini_end = read32(LT_TIMER);
 #endif
 #ifdef FASTBOOT
     }
@@ -936,15 +945,6 @@ u32 _main(void *base)
         minute_on_slc = true;
         minute_on_sd = false;
     }
-#ifdef MEASURE_TIME
-    u32 ini_start = read32(LT_TIMER);
-#endif
-#ifndef FASTBOOT
-    minini_init();
-#endif
-#ifdef MEASURE_TIME
-    u32 ini_end = read32(LT_TIMER);
-#endif
 
     if(is_iosu_reload && !auto_reload){
         autoboot = 0;
