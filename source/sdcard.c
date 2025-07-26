@@ -46,7 +46,6 @@ static int sdcard_multiple_fallback = 0; // Moved from sdcard_ctx
 void sdcard_attach(sdmmc_chipset_handle_t handle)
 {
 #ifndef MINUTE_BOOT1
-    //bool should_remount = elm_mounted;
     ELM_Unmount();
 #endif
 
@@ -66,9 +65,8 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
         }
 
 #ifndef MINUTE_BOOT1
-        //if (should_remount) {
-        ELM_Mount();
-        //}
+        int res = ELM_Mount();
+        printf("Mounting SD card returned %d\n", res);
 #endif
     }
 }
@@ -349,7 +347,6 @@ void sdcard_needs_discover(void)
     if (cmd.c_error) {
         printf("sdcard: SWITCH FUNC Mode 0 %d\n", cmd.c_error);
         card.inserted = card.selected = 0;
-        //goto out_clock;
         return; // 1.0 card, which doesn't support CMD6
     }
 
@@ -365,7 +362,7 @@ void sdcard_needs_discover(void)
     printf("Group 1 Selection: %02x\n", mode_status[16]);
 
     if(mode_status[16] != 1){
-        // Does not SD25 (52MHz), so leave 25MHz
+        // Does not support SD25 (~50MHz), so leave 25MHz
         printf("sdcard: doesn't support SDR25, staying at SDR12\n");
         return;
     }
@@ -383,7 +380,6 @@ void sdcard_needs_discover(void)
     if (cmd.c_error) {
         printf("sdcard: SWITCH FUNC Mode 1 %d\n", cmd.c_error);
         card.inserted = card.selected = 0;
-        //goto out_clock;
         return; // 1.0 card, which doesn't support CMD6
     }
 
@@ -394,12 +390,7 @@ void sdcard_needs_discover(void)
 
     udelay(100); //give card time to switch to Highspeed mode
 
-    printf("sdcard: enabling highspeed 52MHz clock (%02x)\n", csd_bytes[0xB]);
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
-        return;
-    }
-
-    printf("sdcard: could not enable highspeed clock for card, falling back to 48MHz highspeed?\n");
+    printf("sdcard: enabling highspeed 48MHz clock (%02x)\n", csd_bytes[0xB]);
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_48MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
     }

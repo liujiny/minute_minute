@@ -69,6 +69,8 @@ extern uintptr_t ancast_plugins_base;
 #define PASSALONG_MAGIC_DEVICE_SD ("MIDEVESD")
 #define PASSALONG_MAGIC_MINUTE_IMG ("IMGMIIMG")
 #define PASSALONG_MAGIC_FW_IMG ("IMGFWIMG")
+#define PTB_MAGIC               0x01808000
+#define PTB_MAGIC_ADDR          0x0000000C
 
 #define ANCAST_MAGIC (0xEFA282D9l)
 #define ANCAST_TARGET_IOP (0x02)

@@ -32,7 +32,7 @@ void exi0_deselect(void)
 
 void exi0_wait_complete(void)
 {
-    while(!(read32(EXI0_CSR) & 8));
+    while(read32(EXI0_CR) & 1);
 }
 
 // TODO device num

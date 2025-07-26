@@ -75,6 +75,7 @@ char autoboot_file[256] = "ios.patch";
 const char sd_plugin_dir[] = "sdmc:/wiiu/ios_plugins";
 const char slc_plugin_dir[] = "slc:/sys/hax/ios_plugins";
 int main_loaded_from_boot1 = 0;
+bool main_loaded_from_ptb = false;
 bool minute_on_slc = false;
 bool minute_on_sd = false;
 bool use_minute_img = false;
@@ -676,6 +677,8 @@ u32 _main(void *base)
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xF00FCAFE);
 
+    main_loaded_from_ptb = *(u32*)PTB_MAGIC_ADDR == PTB_MAGIC;
+
     prsh_copy_default_bootinfo(&boot_info_copy);
 
     // Grab boot_info and anything else important from minute_boot1, if we detect it was run
@@ -743,6 +746,10 @@ u32 _main(void *base)
         write32(MAGIC_PLUG_ADDR, 0xBADBADBA);
     }
 
+    if(main_loaded_from_ptb){
+        enable_display();
+        printf("minute loaded by PAID THE BEAK\n");
+    }
     printf("boot_state: %X\n", boot_info_copy.boot_state);
  
     // PRSHhax has the timer flag set, but wasn't loaded from minute boot1 and shouldn't be treated as eco mode
@@ -810,12 +817,6 @@ u32 _main(void *base)
 #endif
     sdcard_init();
     printf("sdcard_init finished\n");
-
-    printf("Mounting SD card...\n");
-    res = ELM_Mount();
-    if(res) {
-        printf("Error while mounting SD card (%d).\n", res);
-    }
 #ifdef MEASURE_TIME
     sd_end = read32(LT_TIMER);
 #endif
