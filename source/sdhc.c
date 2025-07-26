@@ -450,22 +450,6 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
 
     /* Enable SD clock. */
     HSET2(hp, SDHC_CLOCK_CTL, SDHC_SDCLK_ENABLE);
-
-    /* Verify clock is fine */
-    if (timing == SDHC_HIGH_SPEED || freq > SDMMC_SDCLK_25MHZ)
-    {
-        DPRINTF(2, ("sdcard: check clocks are fine w/ MMC_ALL_SEND_CID\n"));
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = MMC_ALL_SEND_CID;
-        cmd.c_arg = 0;
-        cmd.c_flags = SCF_RSP_R2;
-        sdhc_exec_command(hp, &cmd);
-        // somehow it is ok to ignore the error interrupt after changing clocks
-        if (cmd.c_error & ~1) {
-            printf("sdcard: MMC_ALL_SEND_CID failed with %d\n", cmd.c_error);
-            return ETIMEDOUT;
-        }
-    }
     
     return 0;
 }
