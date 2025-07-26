@@ -46,7 +46,6 @@ static int sdcard_multiple_fallback = 0; // Moved from sdcard_ctx
 void sdcard_attach(sdmmc_chipset_handle_t handle)
 {
 #ifndef MINUTE_BOOT1
-    //bool should_remount = elm_mounted;
     ELM_Unmount();
 #endif
 
@@ -66,9 +65,8 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
         }
 
 #ifndef MINUTE_BOOT1
-        //if (should_remount) {
-        ELM_Mount();
-        //}
+        int res = ELM_Mount();
+        printf("Mounting SD card returned %d\n", res);
 #endif
     }
 }
