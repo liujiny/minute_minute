@@ -748,6 +748,7 @@ u32 _main(void *base)
 
     if(main_loaded_from_ptb){
         enable_display();
+        smc_set_notification_led(LEDRAW_PURPLE);
         printf("minute loaded by PAID THE BEAK\n");
     }
     printf("boot_state: %X\n", boot_info_copy.boot_state);
