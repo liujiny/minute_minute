@@ -349,7 +349,6 @@ void sdcard_needs_discover(void)
     if (cmd.c_error) {
         printf("sdcard: SWITCH FUNC Mode 0 %d\n", cmd.c_error);
         card.inserted = card.selected = 0;
-        //goto out_clock;
         return; // 1.0 card, which doesn't support CMD6
     }
 
@@ -383,7 +382,6 @@ void sdcard_needs_discover(void)
     if (cmd.c_error) {
         printf("sdcard: SWITCH FUNC Mode 1 %d\n", cmd.c_error);
         card.inserted = card.selected = 0;
-        //goto out_clock;
         return; // 1.0 card, which doesn't support CMD6
     }
 
